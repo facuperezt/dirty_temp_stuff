@@ -14,7 +14,7 @@ visited, out = [],[]
 l = 0
 
 # Simple Breadth First search
-while l <= 100000:
+while l <= 10000:
     idx = fifo.pop()
     print(idx)
     tmp = [x for x in edges.T if idx == x[0] or idx ==x[1] ] # we add all nodes that cite cur index and nodes that are cited by it
@@ -33,4 +33,5 @@ while l <= 100000:
     l = len(out)
     print(l)
 
-#print(out)
+df = pd.DataFrame(np.array(out))
+df.to_csv("data/Data_small")
