@@ -189,7 +189,7 @@ class GraphNet:
 
 # Plotting
 sample_ids = [1, 3, 4, 5]
-
+print(igraph.version)
 plt.figure(figsize=(3 * len(sample_ids), 3))
 for ids, seed in enumerate(sample_ids):
     ax = plt.subplot(1, len(sample_ids), ids + 1)
@@ -220,4 +220,4 @@ for it in range(20001, 20001 + test_size):
 print('For {} test samples, the model predict the growth parameter with an accuracy of {} %'.format(test_size, 100 * (
         test_size - num_false) / test_size))
 
-explain(g, y, t=1)
+explain(g, y, g['target'])
