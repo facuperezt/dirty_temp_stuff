@@ -5,7 +5,7 @@ dataset = PygLinkPropPredDataset(name="ogbl-citation2", root="resources/dataset/
 graph = dataset[0]
 edges = np.array(graph["edge_index"])
 split = dataset.get_edge_split()
-
+print(graph["edge_index"])
 train = split["valid"]
 print(train)
 train = split["test"]
