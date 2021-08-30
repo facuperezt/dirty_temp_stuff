@@ -2,7 +2,7 @@ from ogb.linkproppred import PygLinkPropPredDataset
 import pandas as pd
 import numpy as np
 from collections import Counter
-
+from numpy.random import default_rng
 
 dataset = PygLinkPropPredDataset(name="ogbl-citation2", root="resources/dataset/")
 graph = dataset[0]
@@ -19,7 +19,7 @@ while l <= 30000:
     if fifo :
         idx = fifo.pop()
     else :
-        idx = np.random.randint(0,graph.num_nodes+1) #rewrite this one
+        idx = np.random.randint(0,graph.num_nodes+1) #rewrite this one dead end somehow found a cluster and cant leave
     print(idx)
     tmp = [x for x in edges.T if idx == x[0] or idx ==x[1] ] # we add all nodes that cite cur index and nodes that are cited by it
     #print(tmp)
@@ -73,25 +73,34 @@ source = np.array([x[0] for x in Counter(edges_tmp[:,0]).items() if x[-1] >= 3])
 # for everx index in source collect all edges in edge tmp, random sample 2 in train/valid and remove these from edge pool
 # first return all edges containing index at source
 # only intressted in source
-valid, test = [],[]
+rng = default_rng()
+valid, test,negativ = [],[],[]
 print(edges.shape)
 for src in source:
     tmp = edges[:, 0].tolist()
 
+    # find all instances
     idx = [i for i,x in enumerate(tmp) if x == src]
-    v,t = np.random.choice(idx,2)
-
+    # choose two randomly
+    v,t = rng.choice(idx,2)
     valid.append(edges[v])
     test.append(edges[t])
-    #todo negativ samples
+
+    neg_tmp = [i for i in range(len(tmp)) if i not in idx]
+    neg_tmp = rng.choice(neg_tmp, 20) #20 is arbiteray for testing right now
+    negativ.append(edges[neg_tmp])
+
     edges = np.delete(edges,(v),axis=0)
     edges = np.delete(edges, (t),axis=0)
 
-    print(edges.shape)
 
-print(valid)
-print(features)
-print(features.shape)
+
+    #print(edges.shape)
+
+#print(valid)
+#print(negativ)
+#print(features)
+#print(features.shape)
 pd.DataFrame(features).to_csv("data/Data_small_2_features")
 pd.DataFrame(year).to_csv("data/Data_small_2_node_year")
 
