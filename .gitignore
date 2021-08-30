@@ -19,3 +19,4 @@ resources/dataset/ogbl_citation2/RELEASE_v1.txt
 resources/dataset/ogbl_citation2/split/time/test.pt
 resources/dataset/ogbl_citation2/split/time/train.pt
 resources/dataset/ogbl_citation2/split/time/valid.pt
+test.py

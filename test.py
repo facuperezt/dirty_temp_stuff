@@ -7,19 +7,16 @@ edges = np.array(graph["edge_index"])
 split = dataset.get_edge_split()
 
 train = split["valid"]
+print(train)
+train = split["test"]
+print(train)
 train_s = np.array(train["source_node"])
 train_t = np.array(train["target_node"])
 train = np.vstack((train_s,train_t))
 v1 = 2302382
 v2 = 245742
-print(train)
+print(train_t)
 print(train.T)
-for x in edges.T :
-    #print(x)
-    if x[0] == v1 and x[1] == v2:
-        print("found",x)
-        break
-
 """
 print(edges)
 print(train)

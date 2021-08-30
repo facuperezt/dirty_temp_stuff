@@ -7,6 +7,7 @@ from numpy.random import default_rng
 dataset = PygLinkPropPredDataset(name="ogbl-citation2", root="resources/dataset/")
 graph = dataset[0]
 edges = np.array(graph["edge_index"])
+
 """
 # times cited :3886, node id: 716145,  mag id: 2258584306
 #2032357
@@ -19,7 +20,7 @@ while l <= 30000:
     if fifo :
         idx = fifo.pop()
     else :
-        idx = np.random.randint(0,graph.num_nodes+1) #rewrite this one dead end somehow found a cluster and cant leave
+        idx = np.random.randint(0,graph.num_nodes+1) # TODO rewrite this one dead end somehow found a cluster and cant leave
     print(idx)
     tmp = [x for x in edges.T if idx == x[0] or idx ==x[1] ] # we add all nodes that cite cur index and nodes that are cited by it
     #print(tmp)
@@ -49,7 +50,7 @@ df.to_csv("data/index_2")
 edges = np.array(pd.read_csv("data/Data_small_2",index_col='index'))
 index = np.array(pd.read_csv("data/index_2",index_col='index' ))
 
-features = graph["x"][index].numpy()
+features = np.squeeze(graph["x"][index].numpy())
 year = graph["node_year"][index].numpy().flatten()
 
 # train/valid/test splits : 98/1/1 --> valid & test newest papers
@@ -74,7 +75,8 @@ source = np.array([x[0] for x in Counter(edges_tmp[:,0]).items() if x[-1] >= 3])
 # first return all edges containing index at source
 # only intressted in source
 rng = default_rng()
-valid, test,negativ = [],[],[]
+valid, test,=[],[]
+neg_valid, neg_test = [],[]
 print(edges.shape)
 for src in source:
     tmp = edges[:, 0].tolist()
@@ -87,20 +89,29 @@ for src in source:
     test.append(edges[t])
 
     neg_tmp = [i for i in range(len(tmp)) if i not in idx]
-    neg_tmp = rng.choice(neg_tmp, 20) #20 is arbiteray for testing right now
-    negativ.append(edges[neg_tmp])
+    neg_sample = rng.choice(neg_tmp, 20) #20 is arbiteray for testing right now
+    neg_valid.append(edges[neg_sample])
+    neg_sample = rng.choice(neg_tmp, 20) #20 is arbiteray for testing right now
+    neg_test.append(edges[neg_sample])
 
     edges = np.delete(edges,(v),axis=0)
     edges = np.delete(edges, (t),axis=0)
 
+#print(neg_test)
+#TODO check if correct 
+neg_valid = np.array(neg_valid)[:,:,1]
+neg_test = np.array(neg_test)[:,:,1]
+#print(neg_test)
 
-
-    #print(edges.shape)
-
-#print(valid)
-#print(negativ)
-#print(features)
-#print(features.shape)
+#print(neg_test[:,0])
+#print(neg_test[:,0])
+#print(neg_test[:,:,1].shape)   # singular row
+#print(neg_test[:,:,1])
+#print(neg_test[:,:,0])# singular coloum
+pd.DataFrame(np.array(valid)).to_csv("data/Data_small_2_valid",header=['source','target'])
+pd.DataFrame(np.array(test)).to_csv("data/Data_small_2_test",header=['source','target'])
+pd.DataFrame(np.array(neg_valid)).to_csv("data/Data_small_2_neg_valid")
+pd.DataFrame(np.array(neg_test)).to_csv("data/Data_small_2_neg_test")
 pd.DataFrame(features).to_csv("data/Data_small_2_features")
 pd.DataFrame(year).to_csv("data/Data_small_2_node_year")
 
