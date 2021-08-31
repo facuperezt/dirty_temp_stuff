@@ -9,13 +9,13 @@ class GNN(Module):  # from torch documentation TODO look up what it does
     3-layer GNN with 128 input- and 256 output- and hidden neurons
     """
 
-    def __init__(self):
+    def __init__(self,data):
         # build GNN here
         super(GNN, self).__init__()  # from torch documentation TODO look up what it does
         self.input = GCNConv(128, 256, normalize=False)
         self.hidden = GCNConv(256, 256, normalize=False)
         self.output = GCNConv(256, 256, normalize=False)
-        self.data = data
+        self.data =
         self.edges =
 
     def prep(self, data):
