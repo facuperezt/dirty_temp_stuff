@@ -1,10 +1,11 @@
 import numpy as np
 import pandas as pd
+import torch.nn
 from torch_geometric.nn import GCNConv
 from torch.nn import Linear, ReLU, Module
 
 
-class GNN(Module):  # from torch documentation TODO look up what it does
+class GNN(torch.nn.Module):  # from torch documentation TODO look up what it does
     """
     3-layer GNN with 128 input- and 256 output- and hidden neurons
     """
