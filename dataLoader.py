@@ -30,6 +30,7 @@ def main(full_dataset=False, use_year=False):
     x = torch.from_numpy(features.to_numpy())
     x = x.to(torch.float32)  # more for consistency than necessity
     dataset = data.Data(x, edge_index)
+    #TODO add adjacency for convinence ?
 
     for key in valid.keys():
         valid[key] = torch.from_numpy(valid[key])

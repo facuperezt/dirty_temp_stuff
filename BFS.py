@@ -5,10 +5,12 @@ from numpy.random import default_rng
 import torch
 import dataLoader
 
+rng = default_rng()
+
+
 data, split, years = dataLoader.main(full_dataset=True, use_year=True)
 edges = np.array(data["edge_index"])
 x = data["x"]
-rng = default_rng()
 
 # times cited :3886, node id: 716145,  mag id: 2258584306
 # 2032357
@@ -36,13 +38,25 @@ while count <= 30000:
     visited.append(idx)
 
     count = len(out)
+    print(count, " von min. 30000")
+#reindexing so nodefeature references will make sense
+edge_small = np.array(out)
 
-pd.DataFrame(np.array(out)).to_csv("data/Data_small_2")
-pd.DataFrame(np.unique(out)).to_csv("data/index_2")
+df = pd.DataFrame(np.unique(out))
+df.to_csv("data/index_2")
+
+index = df.to_numpy()
+for x in index:
+    oldNodeId = x[1]
+    swap = np.where(edge_small==x[1])
+    edge_small[swap] = x[0]
+
+pd.DataFrame(edge_small).to_csv("data/Data_small_2")
+
 
 # source,target
-edges = np.array(pd.read_csv("data/Data_small_2", index_col='index'))
-index = np.array(pd.read_csv("data/index_2", index_col='index'))
+edges = pd.read_csv("data/Data_small_2", index_col='index').to_numpy()
+index = pd.read_csv("data/index_2",index_col='index').to_numpy()
 
 features = np.squeeze(x[index].numpy())
 year = years[index].numpy().flatten()
@@ -66,8 +80,8 @@ source = np.array([x[0] for x in Counter(edges_tmp[:, 0]).items() if x[-1] >= 3]
 # for every idx in source collect all edges in edge tmp, random sample 2 in train/valid and remove these from edge pool
 valid, test, = [], []
 neg_valid, neg_test = [], []
-train = edges[:, 0].tolist()
-edges = edges[:, 0].tolist()
+train = edges.tolist()
+edges = edges.tolist()
 for src in source:
     # find all instances
     idx = [i for i, x in enumerate(train) if x == src]

@@ -7,22 +7,28 @@ import utils
 import matplotlib.pyplot as plt
 
 
+############### Example specific #################
+
 # Function to generate a BA graph
-def scalefreegraph(seed=0, embed=False, growth=None):
-    random = numpy.random.mtrand.RandomState(seed)
-    N = 10
+def scalefreegraph(seed=0, N=10, embed=False, growth=None):
+    # ---------  Setup ------------
+    random = numpy.random.mtrand.RandomState(seed)  # create random state
+
+    # Matrix set up
     A = numpy.zeros([N, N])
     A[1, 0] = 1
     A[0, 1] = 1
+
     growth = growth if growth is not None else random.randint(1, 3)
-    N0 = 2
-    for i in range(N0, N):
+
+    for i in range(2, N):  # 2 prior NO variable
         if growth == 1:
             tt = 1  # Barabasi-Albert 1
         elif growth == 2:
             tt = 2  # Barabasi-Albert 2
         else:
             tt = 1 + 1 * ((growth - 1) > random.uniform(0, 1))
+
         p = A.sum(axis=0) / A.sum()
         for j in random.choice(N, tt, p=p, replace=False):
             A[i, j] = 1
@@ -36,7 +42,7 @@ def scalefreegraph(seed=0, embed=False, growth=None):
     # Build Data Structures
     D = A.sum(axis=1)
     L = torch.FloatTensor(A / (numpy.outer(D, D) ** .5 + 1e-9))  # laplacian
-
+    print(A)
     return {
         'adjacency': torch.FloatTensor(A),
         'laplacian': L,
@@ -44,24 +50,6 @@ def scalefreegraph(seed=0, embed=False, growth=None):
         'layout': utils.layout(A, seed) if embed else None,
         'walks': utils.walks(A)
     }
-
-
-####################
-
-# Function to visualise a graph
-def vis_graph(g, ax):
-    # Arange graph layout
-    r = g['layout']
-    r = r - r.min(axis=0)
-    r = r / r.max(axis=0) * 2 - 1
-
-    # Plot the graph
-    N = len(g['adjacency'])
-    for i in numpy.arange(N):
-        for j in numpy.arange(N):
-            if g['adjacency'][i, j] > 0 and i != j: plt.plot([r[i, 0], r[j, 0]], [r[i, 1], r[j, 1]], color='gray',
-                                                             lw=0.5, ls='dotted')
-    ax.plot(r[:, 0], r[:, 1], 'o', color='black', ms=3)
 
 
 def train_scalefree():
@@ -82,6 +70,25 @@ def train_scalefree():
         if it % 1000 == 0:
             print('% 8d %.3f' % (it, erravg))
     return model
+
+
+####################
+
+#---------------- General -----------------
+
+def vis_graph(g, ax):
+    # Arange graph layout
+    r = g['layout']
+    r = r - r.min(axis=0)
+    r = r / r.max(axis=0) * 2 - 1
+
+    # Plot the graph
+    N = len(g['adjacency'])
+    for i in numpy.arange(N):
+        for j in numpy.arange(N):
+            if g['adjacency'][i, j] > 0 and i != j: plt.plot([r[i, 0], r[j, 0]], [r[i, 1], r[j, 1]], color='gray',
+                                                             lw=0.5, ls='dotted')
+    ax.plot(r[:, 0], r[:, 1], 'o', color='black', ms=3)
 
 
 def explain(g, nn, t, gamma=None, ax=None):
@@ -109,26 +116,6 @@ def explain(g, nn, t, gamma=None, ax=None):
         if R < -0.0:
             alpha = numpy.clip(-20 * R.data.numpy(), 0, 1)
             ax.plot(tx, ty, alpha=alpha, color='blue', lw=1.2)
-
-    gamma = 0.1
-
-    for target in [0, 1]:
-        plt.figure(figsize=(3 * len(sample_ids), 3))
-        for ids, seed in enumerate(sample_ids):
-            ax = plt.subplot(1, len(sample_ids), ids + 1)
-            sfg = scalefreegraph(seed=seed, embed=True)
-
-            # Explain
-            explain(sfg, model, target, gamma=gamma, ax=ax)
-            plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
-
-            plt.axis('off')
-            plt.xlim(-1.2, 1.2)
-            plt.ylim(-1.2, 1.2)
-
-        plt.suptitle('Evidence for growth={} with $\gamma={}$'.format(target + 1, gamma), size=14)
-        plt.show()
-        plt.close()
 
 
 class GraphNet:
@@ -179,42 +166,96 @@ class GraphNet:
         H = (Zp * (Z / (Zp + 1e-6)).data).clamp(min=0)
 
         Y = H.mean(dim=0)[l]
-
+        print(H.mean(dim=0))
+        print(Y)
         Y.backward()
 
         return X.data * X.grad
 
-# Plotting
-sample_ids = [1, 3, 4, 5]
-plt.figure(figsize=(3 * len(sample_ids), 3))
-for ids, seed in enumerate(sample_ids):
-    ax = plt.subplot(1, len(sample_ids), ids + 1)
-    sfg = scalefreegraph(seed=seed, embed=True)
 
-    vis_graph(sfg, ax=ax)
-    plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
+def main( sample_ids,graph=None, test_size=200, gamma=0.1):
+    #TODO need graph info , trained model, target value for explain
+    #TODO data to graph layout
 
-    plt.axis('off')
-    plt.xlim(-1.2, 1.2)
-    plt.ylim(-1.2, 1.2)
-    ax.set_title('growth={}'.format(sfg['target']))
+    # -------------------------------- Plotting -----------------------
+    plt.figure(figsize=(3 * len(sample_ids), 3))
+    for ids, seed in enumerate(sample_ids):
+        # create subplots
+        ax = plt.subplot(1, len(sample_ids), ids + 1)
+        plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
 
-plt.show()
-plt.close()
+        # create graph and visualize
+        sfg = scalefreegraph(seed=seed, embed=True) # Default option
+        graph = graph if graph is not None else sfg
+        vis_graph(graph, ax=ax)
 
-model = train_scalefree()
-test_size = 200
+        # plot details
+        plt.axis('off')
+        plt.xlim(-1.2, 1.2)
+        plt.ylim(-1.2, 1.2)
+        ax.set_title('growth={}'.format(graph['target']))
 
-num_false = 0
-for it in range(20001, 20001 + test_size):
-    g = scalefreegraph(seed=it, embed=False)
-    y = model.forward(g['laplacian'])
-    prediction = int(y.data.argmax()) + 1
+    plt.show()
+    plt.close()
+    # -------------------- Train model -------------------------------
+    model = train_scalefree()
 
-    if prediction != g['target']: num_false += 1
+    num_false = 0
 
-print('For {} test samples, the model predict the growth parameter with an accuracy of {} %'.format(test_size, 100 * (
-        test_size - num_false) / test_size))
+    # Testing of model
+    for it in range(20001, 20001 + test_size):
+        # set seed --> make forward pass --> evaluate outcome
+        g = scalefreegraph(seed=it, embed=False)
+        y = model.forward(g['laplacian'])
+        prediction = int(y.data.argmax()) + 1
 
+        if prediction != g['target']: num_false += 1
 
-explain(g, y, g['target'])
+    print(
+        'For {} test samples, the model predict the growth parameter with an accuracy of {} %'.format(test_size, 100 * (
+                test_size - num_false) / test_size))
+
+    # -------------------- Explain ----------------------------------
+
+    for target in [0, 1]:  # example specific for diffrent growth factors ?
+        print("target: ",target)
+        # ---------- Plot ---------
+        plt.figure(figsize=(3 * len(sample_ids), 3))
+        for ids, seed in enumerate(sample_ids):
+            ax = plt.subplot(1, len(sample_ids), ids + 1)
+            plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
+
+            plt.axis('off')
+            plt.xlim(-1.2, 1.2)
+            plt.ylim(-1.2, 1.2)
+
+            # Explain
+            sfg = scalefreegraph(seed=seed, embed=True)  # TODO create graph for visualization ?
+            explain(sfg, model, target, gamma=gamma, ax=ax)
+
+        plt.suptitle('Evidence for growth={} with $\gamma={}$'.format(target + 1, gamma), size=14)
+        plt.show()
+        plt.close()
+
+# my function
+def plot(sample_ids,graph):
+    plt.figure(figsize=(3 * len(sample_ids), 3))
+    for ids, seed in enumerate(sample_ids):
+        # create subplots
+        ax = plt.subplot(1, len(sample_ids), ids + 1)
+        plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
+
+        # create graph and visualize
+        vis_graph(graph, ax=ax)
+
+        # plot details
+        plt.axis('off')
+        plt.xlim(-1.2, 1.2)
+        plt.ylim(-1.2, 1.2)
+        ax.set_title('growth={}'.format(graph['target']))
+
+    plt.show()
+    plt.close()
+
+if __name__ == "__main__":
+    main(sample_ids=[1, 3, 4, 5])
