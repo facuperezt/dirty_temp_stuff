@@ -1,3 +1,5 @@
+import copy
+
 import pandas as pd
 import numpy as np
 from collections import Counter
@@ -58,6 +60,14 @@ pd.DataFrame(edge_small).to_csv("data/Data_small_2")
 edges = pd.read_csv("data/Data_small_2", index_col='index').to_numpy()
 index = pd.read_csv("data/index_2",index_col='index').to_numpy()
 
+index_helper = np.vstack((index.flatten(),np.arange(0,index.shape[0],1)))
+for i in index_helper.T:
+    swap = np.where(edges==i[0])
+    edges[swap] = i[1]
+
+print(edges)
+pd.DataFrame(edges).to_csv("data/Data_small_2reindexd", index=False)
+
 features = np.squeeze(x[index].numpy())
 year = years[index].numpy().flatten()
 pd.DataFrame(features).to_csv("data/Data_small_2_features", index=False)
@@ -67,7 +77,7 @@ pd.DataFrame(year).to_csv("data/Data_small_2_node_year", index=False)
 # that we have 22064 nodes : 21600/220/220 roughly
 
 # create helper array with nodeId, year
-year_helper = np.vstack((index.flatten(), year))
+year_helper = np.vstack((index_helper[1], year))
 # use only nodes that are from  2019
 # nodeId,year
 candidates = np.array([x[0] for x in year_helper.T if x[1] >= 2018])
@@ -80,28 +90,28 @@ source = np.array([x[0] for x in Counter(edges_tmp[:, 0]).items() if x[-1] >= 3]
 # for every idx in source collect all edges in edge tmp, random sample 2 in train/valid and remove these from edge pool
 valid, test, = [], []
 neg_valid, neg_test = [], []
-train = edges.tolist()
-edges = edges.tolist()
+train = copy.deepcopy(edges)
+
 for src in source:
     # find all instances
-    idx = [i for i, x in enumerate(train) if x == src]
+    idx = [i for i, x in enumerate(train) if x[0] == src]
     # choose two randomly
     v, t = rng.choice(idx, 2)
     valid.append(train[v])
     test.append(train[t])
 
-    neg_tmp = [i for i in edges if i not in train[idx]]
+    neg_tmp = [i[0] for i in edges if i[0] not in train[idx]]
     neg_sample = rng.choice(neg_tmp, 20)  # 20 is arbitrary for testing right now
-    neg_valid.append(edges[neg_sample])
+    neg_valid.append(neg_sample)
     neg_sample = rng.choice(neg_tmp, 20)  # 20 is arbitrary for testing right now
-    neg_test.append(edges[neg_sample])
+    neg_test.append(neg_sample)
 
     train = np.delete(train, v, axis=0)
-    edges = np.delete(train, t, axis=0)
+    train = np.delete(train, t, axis=0)
 
 # TODO check if correct
-neg_valid = np.array(neg_valid)[:, :, 1]
-neg_test = np.array(neg_test)[:, :, 1]
+neg_valid = np.array(neg_valid)
+neg_test = np.array(neg_test)
 
 valid_dict = {"source": np.array(valid)[:, 0], "target": np.array(valid)[:, 1], "target_neg": neg_valid}
 test_dict = {"source": np.array(test)[:, 0], "target": np.array(test)[:, 1], "target_neg": neg_test}
