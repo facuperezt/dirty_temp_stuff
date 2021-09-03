@@ -84,19 +84,18 @@ train = edges.tolist()
 edges = edges.tolist()
 for src in source:
     # find all instances
-    idx = [i for i, x in enumerate(edges) if x == src]
+    idx = [i for i, x in enumerate(train) if x == src]
     # choose two randomly
     v, t = rng.choice(idx, 2)
-    valid.append(edges[v])
-    test.append(edges[t])
+    valid.append(train[v])
+    test.append(train[t])
 
-    # TODO redo because we also ignore already sampled for other sources
-    neg_tmp = [i for i in range(len(tmp)) if i not in idx] # TODO more efficient with linespace ?
+    neg_tmp = [i for i in edges if i not in train[idx]]
     neg_sample = rng.choice(neg_tmp, 20)  # 20 is arbitrary for testing right now
     neg_valid.append(edges[neg_sample])
     neg_sample = rng.choice(neg_tmp, 20)  # 20 is arbitrary for testing right now
     neg_test.append(edges[neg_sample])
-    
+
     train = np.delete(train, v, axis=0)
     edges = np.delete(train, t, axis=0)
 
