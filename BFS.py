@@ -11,7 +11,7 @@ rng = default_rng()
 data, split, years = dataLoader.main(full_dataset=True, use_year=True)
 edges = np.array(data["edge_index"])
 x = data["x"]
-
+"""
 # times cited :3886, node id: 716145,  mag id: 2258584306
 # 2032357
 fifo = [2032357]
@@ -53,7 +53,7 @@ for x in index:
 
 pd.DataFrame(edge_small).to_csv("data/Data_small_2")
 
-
+"""
 # source,target
 edges = pd.read_csv("data/Data_small_2", index_col='index').to_numpy()
 index = pd.read_csv("data/index_2",index_col='index').to_numpy()

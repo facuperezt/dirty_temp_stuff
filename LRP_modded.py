@@ -173,7 +173,7 @@ class GraphNet:
         return X.data * X.grad
 
 
-def main( sample_ids,graph=None, test_size=200, gamma=0.1):
+def main(sample_ids,graph=None, test_size=200, gamma=0.1):
     #TODO need graph info , trained model, target value for explain
     #TODO data to graph layout
 
@@ -203,7 +203,7 @@ def main( sample_ids,graph=None, test_size=200, gamma=0.1):
     num_false = 0
 
     # Testing of model
-    for it in range(20001, 20001 + test_size):
+    for it in range(20001, 20001 + test_size): #TODO what does this do
         # set seed --> make forward pass --> evaluate outcome
         g = scalefreegraph(seed=it, embed=False)
         y = model.forward(g['laplacian'])
@@ -255,6 +255,7 @@ def plot(sample_ids,graph):
         ax.set_title('growth={}'.format(graph['target']))
 
     plt.show()
+    plt.savefig("plots/graph_pre_explain.pdf")
     plt.close()
 
 if __name__ == "__main__":

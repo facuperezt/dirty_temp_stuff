@@ -2,6 +2,11 @@ import igraph
 from ogb.linkproppred import PygLinkPropPredDataset
 import numpy as np
 from collections import Counter
+import pandas as pd
+
+df = pd.read_csv("data/index_2")
+print(df.head())
+
 dataset = PygLinkPropPredDataset(name="ogbl-citation2", root="resources/dataset/")
 graph = dataset[0]
 edges = np.array(graph["edge_index"])
@@ -11,6 +16,8 @@ valid = np.array(split["valid"]["target_node_neg"])
 test = np.array(split["test"]["target_node_neg"])
 print(valid,test)
 print(np.allclose(valid,split))
+
+
 """
 print(edges)
 print(train)

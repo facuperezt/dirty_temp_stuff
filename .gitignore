@@ -25,3 +25,5 @@ data/valid.pt
 data/train.pt
 data/test_save.pt
 data/test.pt
+test.py
+test.py
