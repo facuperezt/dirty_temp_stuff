@@ -1,10 +1,11 @@
 import numpy as np
-import pandas as pd
 import torch.nn
 from torch_geometric.nn import GCNConv
-from torch.nn import Linear, ReLU, Module
+from torch.nn import Linear, ReLU
 import dataLoader
+import utils_func as util
 import LRP_modded
+
 
 
 class GNN(torch.nn.Module):  # from torch documentation TODO look up what it does
@@ -19,17 +20,16 @@ class GNN(torch.nn.Module):  # from torch documentation TODO look up what it doe
         self.hidden = GCNConv(256, 256, normalize=False)
         self.output = GCNConv(256, 256, normalize=False)
 
-    def forward(self,data,edges):
+    def forward(self,x,x_adj):
         # do computations of layers here
         # TODO x = x_i + x_j why from paper
-        # data , edges
-        h = self.input()
+        h = self.input(x,x_adj)
         X = ReLU(h)
 
-        h = self.hidden(X, )
+        h = self.hidden(X,x_adj)
         X = ReLU(h)
 
-        h = self.output()
+        h = self.output(X,x_adj)
         return ReLU(h)
 
     def lrp(self):
@@ -105,20 +105,19 @@ def mrr(pos, neg):
     return 1 / lst.index(pos)
 
 
-def main(batchsize=None, epochs=3, full_dataset=False,num_predictions=1):
+def main(batchsize=None, epochs=3, full_dataset=False):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     data, split, year = dataLoader.main(full_dataset=full_dataset, use_year=False)
-    print(data)
-    print(data.adj_t)
+    x , edges = data
     gnn = GNN()
     mlp = MLP()
     gnn.to(device),mlp.to(device),data.to(device),split.to(device)
 
+    adj = util.adjMatrix(edges,x.size[0])
+
     if batchsize is None :
-        batchsize = data["x"].size()[0]
+        batchsize = x.size()[0]
 
-
-    # TODO Prep data
 
     for epoch in epochs:
 
