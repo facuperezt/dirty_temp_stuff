@@ -1,11 +1,12 @@
 import copy
-
 import pandas as pd
 import numpy as np
 from collections import Counter
 from numpy.random import default_rng
 import torch
 import dataLoader
+
+#TODO naming and reindexing
 
 rng = default_rng()
 

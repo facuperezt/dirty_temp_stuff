@@ -7,7 +7,7 @@ import torch
 def main(full_dataset=False, use_year=False):
     if not full_dataset:
         # Load all dataset parts
-        edges = pd.read_csv("data/Data_small_2")
+        edges = pd.read_csv("data/Data_small_2reindexd")
         features = pd.read_csv("data/Data_small_2_features")
         valid = torch.load("data/valid_small.pt")
         test = torch.load("data/test_small.pt")
@@ -30,7 +30,6 @@ def main(full_dataset=False, use_year=False):
     x = torch.from_numpy(features.to_numpy())
     x = x.to(torch.float32)  # more for consistency than necessity
     dataset = data.Data(x, edge_index)
-    #TODO add adjacency for convinence ?
 
     for key in valid.keys():
         valid[key] = torch.from_numpy(valid[key])
@@ -48,4 +47,4 @@ def main(full_dataset=False, use_year=False):
 
 
 if __name__ == "__main__":
-    main(full_dataset=True, use_year=False)
+    main(full_dataset=False, use_year=False)
