@@ -5,8 +5,7 @@ from torch.nn import Linear, ReLU
 import dataLoader
 import utils_func as util
 import LRP_modded
-
-
+import utils
 
 class GNN(torch.nn.Module):  # from torch documentation TODO look up what it does
     """
@@ -65,35 +64,48 @@ class MLP(torch.nn.Module):  # from torch documentation TODO look up what it doe
         pass
 
 
-def train(batchsize, train_set, valid_set, gnn, mlp):
+def train(batchsize, train_set, valid_set, gnn, mlp,adj):
+    # generating random permutaion and how many we have depending on batchsize
     permutation = torch.randperm(train_set["source"].size[0])
-
-    # how many validation samples we can use to have some for all
-    perms = train_set["source"].size[0] // valid_set["source"].size[0]
 
     for i in range(0, train_set["source"].size[0], batchsize):
         # Set up the batch
         idx = permutation[i:i + batchsize]
         train_src, train_tar = train_set["source"][idx], train_set["target"][idx]
 
-        mid = gnn.forward()  # features, edgeindex
-        out = mlp.forward()  # ref says src,dst
+        # forward passes
+        H_gcn = gnn.forward(train_src,adj)  # features, edgeindex #TODO batching on convolutional
+        H_mlp = mlp.forward(H_gcn)  # ref says src,dst
 
         # compute error
+            #TODO  read paper
+            #TODO validation stuff here
 
         # backward pass
-
-        # Set up validation
-
-    # training procedure of GNN&MLP here
-    pass
+        loss.backwards()
+    return  0 #TODO return trainings error and smaples done for logging
 
 @torch.no_grad
-def test(batchsize, test_set, gnn, mlp):
-    # testing procedure of model here
+def test(batchsize, test_set, gnn, mlp,adj):
+    # generating random permutaion and how many we have depending on batchsize
+    permutation = torch.randperm(test_set["source"].size[0])
 
-    #TODO use prefixed evaluator ?
-    pass
+    for i in range(0, test_set["source"].size[0], batchsize):
+        # Set up the batch
+        idx = permutation[i:i + batchsize]
+        train_src, train_tar = test_set["source"][idx], test_set["target"][idx]
+
+        # forward passes
+        H_gcn = gnn.forward(train_src,adj)  # features, edgeindex #TODO batching on convolutional
+        H_mlp = mlp.forward(H_gcn)  # ref says src,dst
+
+        # compute error
+            #TODO  read paper
+
+        # TODO use prefixed evaluator ?
+
+    return  0 #TODO return overall error
+
 
 
 
@@ -105,23 +117,37 @@ def mrr(pos, neg):
     return 1 / lst.index(pos)
 
 
-def main(batchsize=None, epochs=3, full_dataset=False):
+def main(batchsize=None, epochs=3, full_dataset=False, explain=False):
+    # ----------------------- Set up
+    # global stuff
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    #loading the data
     data, split, year = dataLoader.main(full_dataset=full_dataset, use_year=False)
-    x , edges = data
+    x, edges = data
+    x_adj = util.adjMatrix(edges, x.size[0])
+
+    #initilaization models
     gnn = GNN()
     mlp = MLP()
     gnn.to(device),mlp.to(device),data.to(device),split.to(device)
 
-    adj = util.adjMatrix(edges,x.size[0])
-
+    # adjusting batchsize for full Dtataset
     if batchsize is None :
         batchsize = x.size()[0]
 
+    # initilization of LRP
+    if explain:
+        graph = {}
+        graph["layout"] = utils.layout(x_adj, None)
+        graph['adjacency'] = x_adj
+        graph["target"] = 1
+        LRP_modded.plot([1], graph)
 
+    # ----------------------- training & testing
     for epoch in epochs:
 
-        train(batchsize,split["train"],split["valid"],gnn,mlp)
+        train(batchsize,split["train"],split["valid"],gnn,mlp,x_adj)
         #TODO logging for less blackbox
         loss =  test(batchsize,split["test"],gnn, mlp)
         # TODO logging for less blackbox

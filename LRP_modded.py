@@ -250,12 +250,12 @@ def plot(sample_ids,graph):
 
         # plot details
         plt.axis('off')
-        plt.xlim(-1.2, 1.2)
-        plt.ylim(-1.2, 1.2)
+        #plt.xlim(-1.2, 1.2)
+        #plt.ylim(-1.2, 1.2)
         ax.set_title('growth={}'.format(graph['target']))
 
     plt.show()
-    plt.savefig("plots/graph_pre_explain.pdf")
+    plt.savefig("plots/graph_pre_explain")
     plt.close()
 
 if __name__ == "__main__":

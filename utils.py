@@ -46,11 +46,8 @@ def walks(A):
 
 def layout(A,seed):
     graph = igraph.Graph()
-    print("Empty graph:", graph)
     graph.add_vertices(len(A))
-    print("Node graph",graph)
     graph.add_edges(zip(*numpy.where(A==1)))
-    print("Full graph", graph)
     return numpy.array(list(graph.layout_kamada_kawai()))
     
  
