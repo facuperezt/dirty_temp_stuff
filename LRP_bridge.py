@@ -11,7 +11,9 @@ data = data[0]
 size = data["x"].shape[0]
 edges = data["edge_index"]
 adj = utils_func.adjMatrix(edges,size)
-
+print(adj.shape)
+deg = utils_func.degMatrix(adj)
+print(deg)
 
 graph = {}
 layout = utils.layout(adj,None)

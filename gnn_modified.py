@@ -6,12 +6,15 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 import torch_geometric.transforms as T
-from torch_geometric.nn import GCNConv, SAGEConv
+from torch_geometric.nn import GCNConv
 
-from ogb.linkproppred import PygLinkPropPredDataset, Evaluator
+from ogb.linkproppred import  Evaluator
 
-from logger import Logger
+import logging
 
+import dataLoader
+import utils_func
+import numpy as np
 
 class GCN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
@@ -41,33 +44,6 @@ class GCN(torch.nn.Module):
         x = self.convs[-1](x, adj_t)
         return x
 
-
-class SAGE(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
-                 dropout):
-        super(SAGE, self).__init__()
-
-        self.convs = torch.nn.ModuleList()
-        self.convs.append(SAGEConv(in_channels, hidden_channels))
-        for _ in range(num_layers - 2):
-            self.convs.append(SAGEConv(hidden_channels, hidden_channels))
-        self.convs.append(SAGEConv(hidden_channels, out_channels))
-
-        self.dropout = dropout
-
-    def reset_parameters(self):
-        for conv in self.convs:
-            conv.reset_parameters()
-
-    def forward(self, x, adj_t):
-        for conv in self.convs[:-1]:
-            x = conv(x, adj_t)
-            x = F.relu(x)
-            x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.convs[-1](x, adj_t)
-        return x
-
-
 class LinkPredictor(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
                  dropout):
@@ -92,10 +68,10 @@ class LinkPredictor(torch.nn.Module):
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lins[-1](x)
-        return torch.nn.ReLU(x)     # Modified from torch.sigmoid to torch.nn.ReLU(x)
+        return F.relu(x)     # Modified from torch.sigmoid to torch.nn.ReLU(x)
 
 
-def train(model, predictor, data, split_edge, optimizer, batch_size):
+def train(model, predictor, data, split_edge, optimizer, batch_size,adj_t):
     model.train()
     predictor.train()
 
@@ -107,7 +83,7 @@ def train(model, predictor, data, split_edge, optimizer, batch_size):
                            shuffle=True):
         optimizer.zero_grad()
 
-        h = model(data.x, data.adj_t)
+        h = model(data, adj_t)
 
         src, dst = source_edge[perm], target_edge[perm]
 
@@ -132,10 +108,10 @@ def train(model, predictor, data, split_edge, optimizer, batch_size):
 
 
 @torch.no_grad()
-def test(model, predictor, data, split_edge, evaluator, batch_size):
+def test(model, predictor, data, split_edge, evaluator, batch_size,adj_t):
     predictor.eval()
 
-    h = model(data.x, data.adj_t)
+    h = model(data, adj_t)
 
     def test_split(split):
         source = split_edge[split]['source_node'].to(h.device)
@@ -178,22 +154,22 @@ def main():
     parser.add_argument('--dropout', type=float, default=0)
     parser.add_argument('--batch_size', type=int, default=64 * 1024)
     parser.add_argument('--lr', type=float, default=0.0005)
-    parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--eval_steps', type=int, default=1)
-    parser.add_argument('--runs', type=int, default=10)
+    parser.add_argument('--runs', type=int, default=1)
     args = parser.parse_args()
     print(args)
 
     device = f'cuda:{args.device}' if torch.cuda.is_available() else 'cpu'
     device = torch.device(device)
 
-    dataset = PygLinkPropPredDataset(name='ogbl-citation2',
-                                     transform=T.ToSparseTensor())
-    data = dataset[0]
-    data.adj_t = data.adj_t.to_symmetric()
-    data = data.to(device)
 
-    split_edge = dataset.get_edge_split()
+    dataset,split_edge = dataLoader.main(full_dataset=False,use_year=False)
+    data = dataset["x"]
+
+    adj_t = utils_func.adjMatrix(dataset["edge_index"],data.shape[0])
+
+
 
     # We randomly pick some training samples that we want to evaluate on:
     torch.manual_seed(12345)
@@ -203,29 +179,29 @@ def main():
         'target_node': split_edge['train']['target_node'][idx],
         'target_node_neg': split_edge['valid']['target_node_neg'],
     }
-
-    if args.use_sage:
-        model = SAGE(data.num_features, args.hidden_channels,
-                     args.hidden_channels, args.num_layers,
-                     args.dropout).to(device)
-    else:
-        model = GCN(data.num_features, args.hidden_channels,
+    model = GCN(data.shape[1], args.hidden_channels,
                     args.hidden_channels, args.num_layers,
                     args.dropout).to(device)
+    data = data.to(device),
 
-        # Pre-compute GCN normalization.
-        adj_t = data.adj_t.set_diag()
-        deg = adj_t.sum(dim=1).to(torch.float)
-        deg_inv_sqrt = deg.pow(-0.5)
-        deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
-        adj_t = deg_inv_sqrt.view(-1, 1) * adj_t * deg_inv_sqrt.view(1, -1)
-        data.adj_t = adj_t
+    # Pre-compute GCN normalization.
+    deg = torch.from_numpy(utils_func.degMatrix(adj_t)).to(torch.float) #TODO check if maths checks out
+
+    adj_t = torch.from_numpy(adj_t).to(torch.long).to_sparse()
+    adj_t = adj_t.to(device)
+
+    deg_inv_sqrt = deg.pow(-0.5)
+    deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
+
+    print(deg_inv_sqrt.view(-1, 1).shape,adj_t.shape,deg.shape)
+    adj_t = deg_inv_sqrt * adj_t * deg_inv_sqrt #originaly deg_inv_sqrt.view(-1, 1) * adj_t * deg_inv_sqrt.view(1, -1)
+
 
     predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
                               args.num_layers, args.dropout).to(device)
 
     evaluator = Evaluator(name='ogbl-citation2')
-    logger = Logger(args.runs, args)
+
 
     for run in range(args.runs):
         model.reset_parameters()
@@ -233,16 +209,19 @@ def main():
         optimizer = torch.optim.Adam(
             list(model.parameters()) + list(predictor.parameters()),
             lr=args.lr)
+        logger = logging.getLogger("GCN")
+        logger.basicConfig(level=logging.INFO)
 
         for epoch in range(1, 1 + args.epochs):
             loss = train(model, predictor, data, split_edge, optimizer,
-                         args.batch_size)
+                         args.batch_size,adj_t)
             print(f'Run: {run + 1:02d}, Epoch: {epoch:02d}, Loss: {loss:.4f}')
 
             if epoch % args.eval_steps == 0:
                 result = test(model, predictor, data, split_edge, evaluator,
-                              args.batch_size)
-                logger.add_result(run, result)
+                              args.batch_sizeq,adj_t)
+                logger.info(run)
+                logger.info(result)
 
                 if epoch % args.log_steps == 0:
                     train_mrr, valid_mrr, test_mrr = result
@@ -252,12 +231,12 @@ def main():
                           f'Train: {train_mrr:.4f}, '
                           f'Valid: {valid_mrr:.4f}, '
                           f'Test: {test_mrr:.4f}')
-
+"""
         print('GraphSAGE' if args.use_sage else 'GCN')
         logger.print_statistics(run)
     print('GraphSAGE' if args.use_sage else 'GCN')
     logger.print_statistics()
-
+"""
 
 if __name__ == "__main__":
     main()

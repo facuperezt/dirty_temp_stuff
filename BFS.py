@@ -110,13 +110,12 @@ for src in source:
     train = np.delete(train, v, axis=0)
     train = np.delete(train, t, axis=0)
 
-# TODO check if correct
 neg_valid = np.array(neg_valid)
 neg_test = np.array(neg_test)
 
-valid_dict = {"source": np.array(valid)[:, 0], "target": np.array(valid)[:, 1], "target_neg": neg_valid}
-test_dict = {"source": np.array(test)[:, 0], "target": np.array(test)[:, 1], "target_neg": neg_test}
-train_dict = {"source": edges[:, 0], "target": edges[:, 1]}
+valid_dict = {"source_node": np.array(valid)[:, 0], "target_node": np.array(valid)[:, 1], "target_node_neg": neg_valid}
+test_dict = {"source_node": np.array(test)[:, 0], "target_node": np.array(test)[:, 1], "target_node_neg": neg_test}
+train_dict = {"source_node": edges[:, 0], "target_node": edges[:, 1]}
 torch.save(valid_dict, "data/valid_small.pt")
 torch.save(test_dict, "data/test_small.pt")
 torch.save(train_dict, "data/train_small.pt")

@@ -174,9 +174,6 @@ class GraphNet:
 
 
 def main(sample_ids,graph=None, test_size=200, gamma=0.1):
-    #TODO need graph info , trained model, target value for explain
-    #TODO data to graph layout
-
     # -------------------------------- Plotting -----------------------
     plt.figure(figsize=(3 * len(sample_ids), 3))
     for ids, seed in enumerate(sample_ids):
@@ -203,7 +200,7 @@ def main(sample_ids,graph=None, test_size=200, gamma=0.1):
     num_false = 0
 
     # Testing of model
-    for it in range(20001, 20001 + test_size): #TODO what does this do
+    for it in range(20001, 20001 + test_size): # semi random sampling
         # set seed --> make forward pass --> evaluate outcome
         g = scalefreegraph(seed=it, embed=False)
         y = model.forward(g['laplacian'])
@@ -230,7 +227,7 @@ def main(sample_ids,graph=None, test_size=200, gamma=0.1):
             plt.ylim(-1.2, 1.2)
 
             # Explain
-            sfg = scalefreegraph(seed=seed, embed=True)  # TODO create graph for visualization ?
+            sfg = scalefreegraph(seed=seed, embed=True)
             explain(sfg, model, target, gamma=gamma, ax=ax)
 
         plt.suptitle('Evidence for growth={} with $\gamma={}$'.format(target + 1, gamma), size=14)
