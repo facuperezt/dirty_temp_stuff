@@ -28,3 +28,17 @@ data/test.pt
 test.py
 test.py
 LRP_bridge.py
+dataset/ogbl_citation2/split/time/valid.pt
+dataset/ogbl_citation2/split/time/train.pt
+dataset/ogbl_citation2/split/time/test.pt
+dataset/ogbl_citation2/RELEASE_v1.txt
+dataset/ogbl_citation2/raw/num-node-list.csv.gz
+dataset/ogbl_citation2/raw/num-edge-list.csv.gz
+dataset/ogbl_citation2/raw/node_year.csv.gz
+dataset/ogbl_citation2/raw/node-feat.csv.gz
+dataset/ogbl_citation2/raw/edge.csv.gz
+dataset/ogbl_citation2/processed/pre_transform.pt
+dataset/ogbl_citation2/processed/pre_filter.pt
+dataset/ogbl_citation2/processed/geometric_data_processed.pt
+dataset/ogbl_citation2/mapping/README.md
+dataset/ogbl_citation2/mapping/nodeidx2paperid.csv.gz

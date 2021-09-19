@@ -10,7 +10,7 @@ from torch_geometric.nn import GCNConv, SAGEConv
 
 from ogb.linkproppred import PygLinkPropPredDataset, Evaluator
 
-from logger import Logger
+#from logger import Logger
 
 
 class GCN(torch.nn.Module):
@@ -92,7 +92,7 @@ class LinkPredictor(torch.nn.Module):
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lins[-1](x)
-        return torch.nn.ReLU(x)     # Modified from torch.sigmoid to torch.nn.ReLU(x)
+        return torch.sigmoid(x)     # Modified from torch.sigmoid to torch.nn.ReLU(x)
 
 
 def train(model, predictor, data, split_edge, optimizer, batch_size):
@@ -106,18 +106,22 @@ def train(model, predictor, data, split_edge, optimizer, batch_size):
     for perm in DataLoader(range(source_edge.size(0)), batch_size,
                            shuffle=True):
         optimizer.zero_grad()
-
+        print("data",data.x)
+        print("adj:",data.adj_t)
         h = model(data.x, data.adj_t)
 
         src, dst = source_edge[perm], target_edge[perm]
-
+        
         pos_out = predictor(h[src], h[dst])
+        print("pos_out size", pos_out.size())
         pos_loss = -torch.log(pos_out + 1e-15).mean()
 
         # Just do some trivial random sampling.
         dst_neg = torch.randint(0, data.num_nodes, src.size(),
                                 dtype=torch.long, device=h.device)
+        print("Size of src",src.size(),"Size of dst",dst.size(),"Size of dst_neg",dst_neg.size())
         neg_out = predictor(h[src], h[dst_neg])
+        print("neg_out size",neg_out.size())
         neg_loss = -torch.log(1 - neg_out + 1e-15).mean()
 
         loss = pos_loss + neg_loss
@@ -172,7 +176,7 @@ def main():
     parser = argparse.ArgumentParser(description='OGBL-Citation2 (GNN)')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument('--log_steps', type=int, default=1)
-    parser.add_argument('--use_sage', action='store_true')
+    parser.add_argument('--use_sage', default=False) #modified hereN
     parser.add_argument('--num_layers', type=int, default=3)
     parser.add_argument('--hidden_channels', type=int, default=256)
     parser.add_argument('--dropout', type=float, default=0)
@@ -215,17 +219,20 @@ def main():
 
         # Pre-compute GCN normalization.
         adj_t = data.adj_t.set_diag()
+        print("adjt",adj_t, adj_t.size)
         deg = adj_t.sum(dim=1).to(torch.float)
+        print(deg, deg.shape)
         deg_inv_sqrt = deg.pow(-0.5)
         deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
         adj_t = deg_inv_sqrt.view(-1, 1) * adj_t * deg_inv_sqrt.view(1, -1)
+        print(deg_inv_sqrt.view(-1, 1),deg_inv_sqrt.view(-1, 1).shape)
         data.adj_t = adj_t
 
     predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
                               args.num_layers, args.dropout).to(device)
 
     evaluator = Evaluator(name='ogbl-citation2')
-    logger = Logger(args.runs, args)
+    #logger = Logger(args.runs, args)
 
     for run in range(args.runs):
         model.reset_parameters()
@@ -242,7 +249,7 @@ def main():
             if epoch % args.eval_steps == 0:
                 result = test(model, predictor, data, split_edge, evaluator,
                               args.batch_size)
-                logger.add_result(run, result)
+                #logger.add_result(run, result)
 
                 if epoch % args.log_steps == 0:
                     train_mrr, valid_mrr, test_mrr = result
@@ -254,9 +261,9 @@ def main():
                           f'Test: {test_mrr:.4f}')
 
         print('GraphSAGE' if args.use_sage else 'GCN')
-        logger.print_statistics(run)
+        #logger.print_statistics(run)
     print('GraphSAGE' if args.use_sage else 'GCN')
-    logger.print_statistics()
+    #logger.print_statistics()
 
 
 if __name__ == "__main__":

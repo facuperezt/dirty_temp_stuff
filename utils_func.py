@@ -16,7 +16,7 @@ def adjMatrix(edges, numNodes, selfLoops=True):
         adj[edge[0], edge[1]] += 1
 
     return adj
-#TODO check with verifiable matrix
+
 def degMatrix(adj_t):
     deg = np.zeros(adj_t.shape)
     for column in range(adj_t.shape[1]):

@@ -8,6 +8,7 @@ import utils_func as util
 import LRP_modded
 import utils
 
+#TODO reduce the whole nmumpy python swapping
 
 class GNN(torch.nn.Module):  # from torch documentation TODO look up what it does
     """
@@ -17,20 +18,19 @@ class GNN(torch.nn.Module):  # from torch documentation TODO look up what it doe
     def __init__(self):
         # build GNN here
         super(GNN, self).__init__()  # from torch documentation TODO look up what it does
-        self.input = GCNConv(128, 256, normalize=False)
-        self.hidden = GCNConv(256, 256, normalize=False)
-        self.output = GCNConv(256, 256, normalize=False)
+        self.input = GCNConv(128, 256)
+        self.hidden = GCNConv(256, 256)
+        self.output = GCNConv(256, 256)
 
     def forward(self, x, x_adj):
         h = self.input(x, x_adj)
         X = relu(h)
-        #print(h)
-        #print(X)
+
         h = self.hidden(X, x_adj)
         X = relu(h)
-        #print(X)
+
         h = self.output(X, x_adj)
-        return relu(h)
+        return h
 
     def lrp(self):
         pass
@@ -58,7 +58,8 @@ class MLP(torch.nn.Module):  # from torch documentation TODO look up what it doe
         X = relu(h)
 
         h = self.output(X)
-        return relu(h)
+        #print(h)
+        return torch.sigmoid(h)
 
     def lrp(self):
         pass
@@ -71,6 +72,7 @@ def train(batchsize, train_set, valid_set, gnn, mlp, adj, x, rng ,optimizer):
     num_sample = 0
 
     for i in range(0, train_set["source_node"].shape[0], batchsize):
+        #TODO which optimizer
         optimizer.zero_grad()
         # Set up the batch
         idx = permutation[i:i + batchsize]
@@ -78,21 +80,25 @@ def train(batchsize, train_set, valid_set, gnn, mlp, adj, x, rng ,optimizer):
 
         # forward passes
         mid = gnn(x, adj)  # features, edgeindex
+
         # positive sampling
         out = mlp(mid[train_src], mid[train_tar])  # ref says src,dst
         pos_loss = - torch.mean(torch.log(out +1e-15)) #TODO  why inf if not added 1e-15
 
+
+        #TODO shortend and make mor efficient
         # negativ sampling TODO --> do we care if we hit double ?
-        neg_tar = rng.choice(x.shape[0],train_src.shape[0])
-        out = mlp(mid[train_src], mid[neg_tar])  # ref says src,dst
-        print(1 - out + 1e-15)
-        print(torch.log(1 - out + 1e-15))
-        print(- torch.mean(torch.log(1 - out + 1e-15)) ,"vs ",-torch.log(1 - out + 1e-15).mean()) #TODO why is my neg loss so big
-        neg_loss = - torch.mean(torch.log(1 - out + 1e-15))
-        print(pos_loss,neg_loss)
+        neg_tar = rng.choice(x.shape[0],(train_src.shape[0],20))
+        neg_loss = torch.zeros((train_src.shape[0],1))
+        for i in range(neg_tar.shape[1]):
+            out =mlp(mid[train_src], mid[neg_tar[:,i]]) # ref says src,dst
+            neg_loss += torch.log(1 - out + 1e-15)/20
+
+        neg_loss = - torch.mean(neg_loss)
+
         # compute error
         loss = pos_loss + neg_loss
-        print(loss)
+
         # backward pass
         loss.backward()
         optimizer.step()
@@ -104,7 +110,7 @@ def train(batchsize, train_set, valid_set, gnn, mlp, adj, x, rng ,optimizer):
     return sum(total_loss) / num_sample
 
 
-#@torch.no_grad
+@torch.no_grad()
 def test(batchsize, data_set, gnn, mlp, adj,x):
 
     tmp = data_set["source_node"].shape[0]
@@ -120,21 +126,38 @@ def test(batchsize, data_set, gnn, mlp, adj,x):
         mid = gnn(x, adj)  # features, edgeindex
 
         # positive sampling
-        out = mlp(mid[src], mid[tar])  # ref says src,dst
-        pos_loss = - torch.mean(torch.log(out+ 1e-15))
+        pos_pred = mlp(mid[src], mid[tar]).detach()
+        tmp = torch.ones(pos_pred.size())
+        pos_helper = torch.hstack((pos_pred,tmp))
 
+        tmp = torch.zeros((21,126,2))
+        tmp[0,:,:] = pos_helper
+        # neg sampling
         for i in range(tar_neg.shape[1]):
-            out = mlp(mid[src], mid[tar_neg[:,i]])  # ref says src,dst
-            neg_loss = - torch.mean(torch.log(1 - out+ 1e-15))
+            prediction = mlp(mid[src], mid[tar_neg[:,i]]).detach()
+            neg_helper = torch.hstack((prediction,torch.zeros(prediction.size())))
+            tmp[i+1, :, :] = neg_helper
 
-        # TODO MRR
+        values = []
+        #TODO shortend and make mor efficient
+        for row in range(0, 22):
+            tmp2 = tmp[:, row, :]
+            tmp2 = tmp2[torch.argsort(tmp2[:, 0], descending=True, dim=0)]
+            maybe = tmp2[:, 1] == 1
+            values.append(maybe.nonzero())
+            tmp[:, row, :] = tmp2
+        #print(values)
+        for x in range(len(values)):
+            values[x] = 1/ (values[x]+1)
+        val = sum(values) / 126
+        #print(val)
 
-        # TODO use prefixed evaluator ?
-
-    return 0  # TODO return overall error
 
 
-def main(batchsize=None, epochs=3, full_dataset=False, explain=False,use_year=False):
+    return (tmp,val)
+
+
+def main(batchsize=1024, epochs=50, full_dataset=False, explain=False,use_year=False):
     # ----------------------- Set up
     # global stuff
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -146,7 +169,6 @@ def main(batchsize=None, epochs=3, full_dataset=False, explain=False,use_year=Fa
 
     x, edges = data["x"],data["edge_index"]
 
-    #TODO also diagonals and stuff
     x_adj = util.adjMatrix(edges, x.shape[0])
 
     train_set, valid_set, test_set = split["train"],split["valid"],split["test"]
@@ -177,22 +199,24 @@ def main(batchsize=None, epochs=3, full_dataset=False, explain=False,use_year=Fa
         graph["target"] = 1
         LRP_modded.plot([1], graph)
 
-    x_adj = torch.from_numpy(x_adj).to(torch.long).to_sparse()
-    print(x_adj.dtype, x_adj.type)
     # ----------------------- training & testing
-    for i  in range(0,epochs):
+    old = 0
+    for i in range(0,epochs+1):
 
-        loss = train(batchsize, train_set, valid_set, gnn, mlp, x_adj, x, rng,optimizer)
+        loss = train(batchsize, train_set, valid_set, gnn, mlp, edges, x, rng,optimizer)
+
         # TODO logging for less blackbox
         train_mmr = test(batchsize, mrr_train, gnn, mlp,edges,x)
         test_mmr = test(batchsize, test_set, gnn, mlp,edges,x)
         valid_mrr = test(batchsize, valid_set, gnn, mlp,edges,x)
         # TODO logging for less blackbox
-
+        print("diffrence between epoch",test_mmr[1]-old)
+        old = test_mmr[1]
         # TODO stopping criteria
-        if loss <= 0.01:
+        if test_mmr[1] >= 90:
+            print("test")
             break
-
+    print(test_mmr[1])
 
 if __name__ == "__main__":
     main()

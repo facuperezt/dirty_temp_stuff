@@ -185,24 +185,22 @@ def main():
     data = data.to(device),
 
     # Pre-compute GCN normalization.
-    deg = torch.from_numpy(utils_func.degMatrix(adj_t)).to(torch.float) #TODO check if maths checks out
+    #TODO not the most efficient way
+    deg = utils_func.degMatrix(adj_t)
 
-    adj_t = torch.from_numpy(adj_t).to(torch.long).to_sparse()
-    adj_t = adj_t.to(device)
-
-    deg_inv_sqrt = deg.pow(-0.5)
+    deg_inv_sqrt = deg ** (-0.5)
     deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
 
-    print(deg_inv_sqrt.view(-1, 1).shape,adj_t.shape,deg.shape)
-    adj_t = deg_inv_sqrt * adj_t * deg_inv_sqrt #originaly deg_inv_sqrt.view(-1, 1) * adj_t * deg_inv_sqrt.view(1, -1)
-
+    adj_t = np.matmul(np.matmul(deg_inv_sqrt,adj_t),deg_inv_sqrt) #originaly deg_inv_sqrt.view(-1, 1) * adj_t * deg_inv_sqrt.view(1, -1)
+    adj_t = torch.from_numpy(adj_t).to(torch.long).to_sparse()
+    adj_t = adj_t.to(device)
 
     predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
                               args.num_layers, args.dropout).to(device)
 
     evaluator = Evaluator(name='ogbl-citation2')
 
-
+    print("test")
     for run in range(args.runs):
         model.reset_parameters()
         predictor.reset_parameters()
