@@ -4,8 +4,26 @@ from ogb.linkproppred import PygLinkPropPredDataset
 import numpy as np
 from collections import Counter
 import pandas as pd
-rand = torch.randint(12,(12,1))
+import matplotlib.pyplot as plt
 
+y = np.arange(0,50)
+v = torch.randint(50,(50,1))
+t = torch.randint(50,(50,1))
+l = torch.randint(50,(50,1))
+
+
+fig, (ax1, ax2) = plt.subplots(1, 2)
+fig.suptitle('Model Error')
+plt.ylim(50)
+plt.xlim(50)
+ax1.plot(y, v,label="Valid MRR")
+ax1.plot(y,t,label="Test MRR")
+ax2.plot(y, l,label="Trainings Error")
+ax1.legend(),ax2.legend()
+ax1.grid(True),ax2.grid(True)
+
+plt.show()
+"""
 one = torch.hstack((rand[0:4],torch.ones((4,1))))
 two = torch.hstack((rand[4:8],torch.zeros((4,1))))
 three = torch.hstack((rand[8:12],torch.zeros((4,1))))
@@ -33,6 +51,7 @@ print(values)
 print(main)
 uzff= main[:,:,0] ==1
 print(uzff.nonzero())
+"""
 """
 df = pd.read_csv("data/index_2")
 print(df.head())

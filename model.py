@@ -7,7 +7,7 @@ import dataLoader
 import utils_func as util
 import LRP_modded
 import utils
-
+import matplotlib.pyplot as plt
 #TODO reduce the whole nmumpy python swapping
 
 class GNN(torch.nn.Module):  # from torch documentation TODO look up what it does
@@ -201,8 +201,11 @@ def main(batchsize=1024, epochs=50, full_dataset=False, explain=False,use_year=F
 
     # ----------------------- training & testing
     old = 0
-    for i in range(0,epochs+1):
-
+    v = torch.zeros((50,1))
+    t = torch.zeros((50,1))
+    l = torch.zeros((50,1))
+    for i in range(0,epochs):
+        print(i)
         loss = train(batchsize, train_set, valid_set, gnn, mlp, edges, x, rng,optimizer)
 
         # TODO logging for less blackbox
@@ -210,13 +213,32 @@ def main(batchsize=1024, epochs=50, full_dataset=False, explain=False,use_year=F
         test_mmr = test(batchsize, test_set, gnn, mlp,edges,x)
         valid_mrr = test(batchsize, valid_set, gnn, mlp,edges,x)
         # TODO logging for less blackbox
-        print("diffrence between epoch",test_mmr[1]-old)
+        #print("diffrence between epoch",test_mmr[1]-old)
         old = test_mmr[1]
         # TODO stopping criteria
         if test_mmr[1] >= 90:
             print("test")
             break
+
+        l[i] = loss.detach()
+        v[i] = (valid_mrr[1].detach())
+        t[i] = (test_mmr[1].detach())
+
+    fig, (ax1, ax2) = plt.subplots(1, 2,sharex=True)
+    fig.suptitle('Model Error')
+    plt.xlim(50)
+    y =np.arange(0,50)
+    print(y)
+    ax1.plot(y, v, label="Valid MRR")
+    ax1.plot(y, t, label="Test MRR")
+    ax2.plot(y, l, label="Trainings Error")
+    ax1.legend(), ax2.legend()
+    ax1.grid(True), ax2.grid(True)
+    plt.xlim(50)
+    plt.savefig("plots/errors.pdf")
     print(test_mmr[1])
+    plt.show()
+
 
 if __name__ == "__main__":
     main()
