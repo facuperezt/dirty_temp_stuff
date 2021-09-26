@@ -4,6 +4,7 @@ from torch_geometric.nn import GCNConv
 from torch.nn import Linear
 from torch.nn.functional import relu
 import dataLoader
+import utils_func
 import utils_func as util
 import LRP_modded
 import utils
@@ -41,29 +42,47 @@ class MLP(torch.nn.Module):  # from torch documentation TODO look up what it doe
     3-Layer MLP with 256 input and hidden neurons and 1 output neuron
     """
 
-    def __init__(self):
+    def __init__(self,batchsize):
         # build MLP here
         super(MLP, self).__init__()  # from torch documentation TODO look up what it does
         self.input = Linear(256, 256)
         self.hidden = Linear(256, 256)
         self.output = Linear(256, 1)
+        self.R = torch.zeros((3,batchsize,1))
+        self.a = torch.zeros((3,batchsize,256))
 
     def forward(self, src, tar):
         x = src + tar  # TransE model embedding
 
         h = self.input(x)
         X = relu(h)
+        print(X)
+        self.a[0] = X
 
         h = self.hidden(X)
         X = relu(h)
+        self.a[0] = X
 
         h = self.output(X)
-        #print(h)
+        self.a[0] = h
+
+        self.R[-1] = h #TODO is it correct that a and R are the same ????
         return torch.sigmoid(h)
 
-    def lrp(self):
-        pass
+    def lrp(self, epsilon=0.1,gamma=0.1):
 
+        z = epsilon + sum(self.a[-2]) * (self.output + gamma * self.output.clamp(min=0))
+        s = self.R[-1] /(z+1e-15)
+        c = s * (self.output + gamma * self.output.clamp(min=0))
+        self.R[-2] = self.a[-2] * c
+
+        z = epsilon + sum(self.a[-3]) * (self.hidden + gamma * self.hidden.clamp(min=0))
+        s = self.R[-2] / (z + 1e-15)
+        c = sum(s * (self.output + gamma * self.output.clamp(min=0)))
+        self.R[-3] = self.a[-3] * c
+
+        print(self.R)
+        return self.R
 
 def train(batchsize, train_set, valid_set, gnn, mlp, adj, x, rng ,optimizer):
     # generating random permutaion
@@ -152,12 +171,12 @@ def test(batchsize, data_set, gnn, mlp, adj,x):
         val = sum(values) / 126
         #print(val)
 
-
+        R = mlp.lrp()
 
     return (tmp,val)
 
 
-def main(batchsize=1024, epochs=50, full_dataset=False, explain=False,use_year=False):
+def main(batchsize=1024, epochs=5, full_dataset=False, explain=False,use_year=False):
     # ----------------------- Set up
     # global stuff
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -183,7 +202,7 @@ def main(batchsize=1024, epochs=50, full_dataset=False, explain=False,use_year=F
 
     # initilaization models
     gnn = GNN()
-    mlp = MLP()
+    mlp = MLP(batchsize)
     gnn.to(device), mlp.to(device), data.to(device)
     optimizer = torch.optim.Adam(
         list(gnn.parameters()) + list(mlp.parameters()))

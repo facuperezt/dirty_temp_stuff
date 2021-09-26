@@ -42,3 +42,5 @@ dataset/ogbl_citation2/processed/pre_filter.pt
 dataset/ogbl_citation2/processed/geometric_data_processed.pt
 dataset/ogbl_citation2/mapping/README.md
 dataset/ogbl_citation2/mapping/nodeidx2paperid.csv.gz
+venv
+*.pyc

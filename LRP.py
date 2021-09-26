@@ -153,14 +153,14 @@ class GraphNet:
             Mj = torch.FloatTensor(numpy.eye(len(A))[j][:, numpy.newaxis])
             Mk = torch.FloatTensor(numpy.eye(len(A))[k][:, numpy.newaxis])
 
-        W1p = self.W1 + gamma * self.W1.clamp(min=0)
+        W1p = self.W1 + gamma * self.W1.clamp(min=0)  # god damn gamma rule w^- + yw^+
         W2p = self.W2 + gamma * self.W2.clamp(min=0)
         Vp = self.V + gamma * self.V.clamp(min=0)
 
-        X = torch.eye(len(A))
+        X = torch.eye(len(A)) # diagonal matrix --> baisicly only selfloops
         X.requires_grad_(True)
 
-        H = X.matmul(self.U).clamp(min=0)
+        H = X.matmul(self.U).clamp(min=0)  # 
 
         Z = A.transpose(1, 0).matmul(H.matmul(self.W1))
         Zp = A.transpose(1, 0).matmul(H.matmul(W1p))
