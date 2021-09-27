@@ -147,9 +147,9 @@ class GraphNet:
         X = torch.eye(len(A))
         X.requires_grad_(True)
 
-        H = X.matmul(self.U).clamp(min=0)
+        H = X.matmul(self.U).clamp(min=0) # x mal input
 
-        Z = A.transpose(1, 0).matmul(H.matmul(self.W1))
+        Z = A.transpose(1, 0).matmul(H.matmul(self.W1)) # h mal w
         Zp = A.transpose(1, 0).matmul(H.matmul(W1p))
         H = (Zp * (Z / (Zp + 1e-6)).data).clamp(min=0)
 

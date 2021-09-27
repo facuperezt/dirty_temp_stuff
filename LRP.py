@@ -152,6 +152,8 @@ class GraphNet:
             j, k = inds
             Mj = torch.FloatTensor(numpy.eye(len(A))[j][:, numpy.newaxis])
             Mk = torch.FloatTensor(numpy.eye(len(A))[k][:, numpy.newaxis])
+            print(Mk)
+            print(Mj)
 
         W1p = self.W1 + gamma * self.W1.clamp(min=0)  # god damn gamma rule w^- + yw^+
         W2p = self.W2 + gamma * self.W2.clamp(min=0)
@@ -160,10 +162,10 @@ class GraphNet:
         X = torch.eye(len(A)) # diagonal matrix --> baisicly only selfloops
         X.requires_grad_(True)
 
-        H = X.matmul(self.U).clamp(min=0)  # 
+        H = X.matmul(self.U).clamp(min=0)  # selfloops mal input weigths
 
-        Z = A.transpose(1, 0).matmul(H.matmul(self.W1))
-        Zp = A.transpose(1, 0).matmul(H.matmul(W1p))
+        Z = A.transpose(1, 0).matmul(H.matmul(self.W1)) # Adjacency *  (H * W1)
+        Zp = A.transpose(1, 0).matmul(H.matmul(W1p)) #
         H = (Zp * (Z / (Zp + 1e-6)).data).clamp(min=0)
 
         if inds is not None: H = H * Mj + (1 - Mj) * (H.data)
@@ -217,4 +219,4 @@ print('For {} test samples, the model predict the growth parameter with an accur
         test_size - num_false) / test_size))
 
 
-explain(g, y, g['target'])
+explain(g, y, 1)
