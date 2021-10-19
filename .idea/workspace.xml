@@ -20,7 +20,7 @@
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
   </component>
-  <component name="RunManager" selected="Python.model">
+  <component name="RunManager" selected="Python.LRP_modded">
     <configuration name="LRP" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="BA_Code" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -86,8 +86,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.model" />
         <item itemvalue="Python.LRP_modded" />
+        <item itemvalue="Python.model" />
         <item itemvalue="Python.LRP" />
       </list>
     </recent_temporary>

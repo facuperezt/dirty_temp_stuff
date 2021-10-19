@@ -42,7 +42,6 @@ def scalefreegraph(seed=0, N=10, embed=False, growth=None):
     # Build Data Structures
     D = A.sum(axis=1)
     L = torch.FloatTensor(A / (numpy.outer(D, D) ** .5 + 1e-9))  # laplacian
-    print(A)
     return {
         'adjacency': torch.FloatTensor(A),
         'laplacian': L,
@@ -137,23 +136,30 @@ class GraphNet:
     def lrp(self, A, gamma, l, inds):
         if inds is not None:
             j, k = inds
-            Mj = torch.FloatTensor(numpy.eye(len(A))[j][:, numpy.newaxis])
-            Mk = torch.FloatTensor(numpy.eye(len(A))[k][:, numpy.newaxis])
+            Mj = torch.FloatTensor(numpy.eye(len(A))[j][:, numpy.newaxis])  # MAskj
+            Mk = torch.FloatTensor(numpy.eye(len(A))[k][:, numpy.newaxis])  # Mask k
 
-        W1p = self.W1 + gamma * self.W1.clamp(min=0)
-        W2p = self.W2 + gamma * self.W2.clamp(min=0)
-        Vp = self.V + gamma * self.V.clamp(min=0)
+        W1p = self.W1 + gamma * self.W1.clamp(min=0)    # W^1
+        W2p = self.W2 + gamma * self.W2.clamp(min=0)    # W^1
+        Vp = self.V + gamma * self.V.clamp(min=0)   # W^1
 
-        X = torch.eye(len(A))
+        X = torch.eye(len(A))   # Input but why not adj but only selflops
         X.requires_grad_(True)
 
-        H = X.matmul(self.U).clamp(min=0) # x mal input
+        H = X.matmul(self.U).clamp(min=0) # x mal input layer
 
-        Z = A.transpose(1, 0).matmul(H.matmul(self.W1)) # h mal w
-        Zp = A.transpose(1, 0).matmul(H.matmul(W1p))
+        Z = A.transpose(1, 0).matmul(H.matmul(self.W1)) # adjacency mal h mal w1 -> adj * (X * IN ) * W1
+        Zp = A.transpose(1, 0).matmul(H.matmul(W1p))    # adjaceny mal H mal w^1 --> adj *(X * IN) * W^1
+        #H = (Zp * (Z / (Zp + 1e-6)).data).clamp(min=0) # adj *(X * IN) * W^1 ) * ((adj * (X * IN ) * W1/ adj *(X * IN) * W^1)
+
+        print(H)
+        print(Z)
+        print("Zp", Zp.size())
         H = (Zp * (Z / (Zp + 1e-6)).data).clamp(min=0)
+        print("H", H.size())
 
         if inds is not None: H = H * Mj + (1 - Mj) * (H.data)
+        print("H", H.size())
 
         Z = A.transpose(1, 0).matmul(H.matmul(self.W2))
         Zp = A.transpose(1, 0).matmul(H.matmul(W2p))
@@ -169,6 +175,8 @@ class GraphNet:
         print(H.mean(dim=0))
         print(Y)
         Y.backward()
+
+        print(X.data * X.grad)
 
         return X.data * X.grad
 
