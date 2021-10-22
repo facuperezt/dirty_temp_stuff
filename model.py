@@ -57,6 +57,37 @@ class GNN(torch.nn.Module):  # from torch documentation TODO look up what it doe
 
 
         #TODO neighbouring and walks
+
+        #l = [1,2,3] list of nodes in a walk
+        print(r.size())
+        print(r.T.size())
+        r = r.T
+        R[-1] = self.output.lin.weight / r
+        print("R",R[-1],R[-1].size())
+        z = epsilon + roh(self.output).forward(A[2],edge_index)
+        print("z", z, z.size())
+        s = R[2]/(z+1e-15)
+        (z*s.data).sum().backward(retain_graph=True)
+        c = A[2].grad
+        R[1] = A[2] * c
+        
+        R[1] = self.hidden.lin.weight / R[1]
+        
+        z = epsilon + roh(self.hidden).forward(A[1],edge_index)
+        s = R[1]/(z+1e-15)
+        (z*s.data).sum().backward(retain_graph=True)
+        c = A[1].grad
+        R[0] = A[1] * c
+
+        R[0] = self.hidden.lin.weight / R[0]
+        
+        z = epsilon + roh(self.input).forward(A[0],edge_index)
+        s = R[0] / (z + 1e-15)
+        (z * s.data).sum().backward()
+        c = A[0].grad
+        test = A[0] * c
+
+        """
         z = epsilon + roh(self.output).forward(A[2],edge_index)
         s = R[2]/(z+1e-15)
         (z*s.data).sum().backward(retain_graph=True)
@@ -74,7 +105,7 @@ class GNN(torch.nn.Module):  # from torch documentation TODO look up what it doe
         (z * s.data).sum().backward()
         c = A[0].grad
         test = A[0] * c
-
+        """
         return R
 
 class MLP(torch.nn.Module):  # from torch documentation TODO look up what it does
@@ -108,7 +139,7 @@ class MLP(torch.nn.Module):  # from torch documentation TODO look up what it doe
     def lrp(self, src, tar, r, epsilon=0.1, gamma=0.1):
 
         def roh(layer):
-            #TODO to deep copy or not to deepcopy
+            #TODO to deep copy
             with torch.no_grad():
                 layer.weight[:,:] = layer.weight + gamma * torch.clamp(layer.weight, min=0)
                 return layer
@@ -118,22 +149,21 @@ class MLP(torch.nn.Module):  # from torch documentation TODO look up what it doe
 
         R[-1] = r
 
-        #TODO should it be relu(self.input(A[0]))
+        #TODO relu(self.input(A[0]))
         A[0] = src + tar
-        A[1] = self.input(A[0])
-        A[2] = self.hidden(A[1])
-
-        A[2].retain_grad(),A[1].retain_grad(),A[0].retain_grad()
+        A[0] = A[0].data.clone().requires_grad_(True)
+        A[1] = self.input(A[0]).data.clone().requires_grad_(True)
+        A[2] = self.hidden(A[1]).data.clone().requires_grad_(True)
 
         z = epsilon + roh(self.output).forward(A[2])
         s = R[2]/(z+1e-15)
-        (z*s.data).sum().backward(retain_graph=True)
+        (z*s.data).sum().backward()
         c = A[2].grad
         R[1] = A[2] * c
 
         z = epsilon + roh(self.hidden).forward(A[1])
         s = R[1]/(z+1e-15)
-        (z*s.data).sum().backward(retain_graph=True)
+        (z*s.data).sum().backward()
         c = A[1].grad
         R[0] = A[1] * c
 
@@ -202,15 +232,14 @@ def explains(batchsize, data_set, gnn, mlp, edge_index, x,adj):
         # forward passes
         mid = gnn(x, edge_index)  # features, edgeindex
         pos_pred = mlp(mid[src], mid[tar])
-        print(adj.shape)
 
-        for node in range(int(src.shape())):
-            #TODO single wlak calling
-            # for walk :
-                #p = gnn.lrp(x, edge_index, adj,mid)
+        l = list(src.size())[0]
+        print(mid[src].size())
 
-            R = mlp.lrp(mid[node], mid[node], pos_pred)
-
+        for node in range(l):
+            #p = gnn.lrp(x, edge_index, adj,mid[tar[node]]) # how exactly
+            R = mlp.lrp(mid[src[node]], mid[tar[node]], pos_pred)
+            print(R)
         return R
 
 @torch.no_grad()
