@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def adjMatrix(edges, numNodes, selfLoops=True):
     """
     Function to calculate Adjacency MMatrix given an edge Array
@@ -17,9 +18,21 @@ def adjMatrix(edges, numNodes, selfLoops=True):
 
     return adj
 
+
 def degMatrix(adj_t):
     deg = np.zeros(adj_t.shape)
     for column in range(adj_t.shape[1]):
-        deg[column][column] += np.sum(adj_t[:,column])
+        deg[column][column] += np.sum(adj_t[:, column])
 
     return deg
+
+
+def find_walks(src, tar, walks):
+    # TODO walks might be a bit weird retund walk 22063,22063,22063
+    arr = np.asarray(walks)
+    src = src.numpy()
+    tar = tar.numpy()
+
+    tmp = [arr[n] for n in range(arr.shape[0]) if src in arr[n] or tar in arr[n]]
+
+    return tmp
