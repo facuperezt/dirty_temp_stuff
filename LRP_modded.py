@@ -81,6 +81,7 @@ def vis_graph(g, ax):
     r = r - r.min(axis=0)
     r = r / r.max(axis=0) * 2 - 1
 
+    print("what is r", r)
     # Plot the graph
     N = len(g['adjacency'])
     for i in numpy.arange(N):
@@ -103,9 +104,14 @@ def explain(g, nn, t, gamma=None, ax=None):
             if g['adjacency'][i, j] > 0 and i != j: plt.plot([r[i, 0], r[j, 0]], [r[i, 1], r[j, 1]], color='gray',
                                                              lw=0.5, ls='dotted')
     ax.plot(r[:, 0], r[:, 1], 'o', color='black', ms=3)
-
+    c = 0
     for (i, j, k) in g['walks']:
-        R = nn.lrp(g['laplacian'], gamma, t, (j, k))[i].sum()
+
+        R = nn.lrp(g['laplacian'], gamma, t, (j, k))
+        print("R orginaly", R, R.size())
+        R = R[i].sum()
+        print("R after crop", R,R.size())
+
         tx, ty = utils.shrink([r[i, 0], r[j, 0], r[k, 0]], [r[i, 1], r[j, 1], r[k, 1]])
 
         if R > 0.0:
@@ -113,9 +119,11 @@ def explain(g, nn, t, gamma=None, ax=None):
             ax.plot(tx, ty, alpha=alpha, color='red', lw=1.2)
 
         if R < -0.0:
+            c+=1
+            print(R)
             alpha = numpy.clip(-20 * R.data.numpy(), 0, 1)
             ax.plot(tx, ty, alpha=alpha, color='blue', lw=1.2)
-
+    print("Neghative values",c)
 
 class GraphNet:
     def __init__(self, d, h, c):
@@ -144,6 +152,7 @@ class GraphNet:
         Vp = self.V + gamma * self.V.clamp(min=0)   # W^1
 
         X = torch.eye(len(A))   # Input but why not adj but only selflops
+        print("X", X.size())
         X.requires_grad_(True)
 
         H = X.matmul(self.U).clamp(min=0) # x mal input layer
@@ -152,14 +161,9 @@ class GraphNet:
         Zp = A.transpose(1, 0).matmul(H.matmul(W1p))    # adjaceny mal H mal w^1 --> adj *(X * IN) * W^1
         #H = (Zp * (Z / (Zp + 1e-6)).data).clamp(min=0) # adj *(X * IN) * W^1 ) * ((adj * (X * IN ) * W1/ adj *(X * IN) * W^1)
 
-        print(H)
-        print(Z)
-        print("Zp", Zp.size())
         H = (Zp * (Z / (Zp + 1e-6)).data).clamp(min=0)
-        print("H", H.size())
 
         if inds is not None: H = H * Mj + (1 - Mj) * (H.data)
-        print("H", H.size())
 
         Z = A.transpose(1, 0).matmul(H.matmul(self.W2))
         Zp = A.transpose(1, 0).matmul(H.matmul(W2p))
@@ -172,12 +176,10 @@ class GraphNet:
         H = (Zp * (Z / (Zp + 1e-6)).data).clamp(min=0)
 
         Y = H.mean(dim=0)[l]
-        print(H.mean(dim=0))
-        print(Y)
         Y.backward()
 
-        print(X.data * X.grad)
-
+        t = X.data * X.grad
+        print(t.size())
         return X.data * X.grad
 
 

@@ -53,9 +53,11 @@ class GNN(torch.nn.Module):  # from torch documentation TODO look up what it doe
         A[1] = relu(self.input(A[0],edge_index)).data.clone().requires_grad_(True)
         A[2] = relu(self.hidden(A[1],edge_index)).data.clone().requires_grad_(True)
 
+        all = []
         for walk in walks:
 
             R[-1] = r
+            #print(r.size())
 
             z = epsilon + roh(self.output).forward(A[2],edge_index)
             z = z[walk[2]]
@@ -74,7 +76,7 @@ class GNN(torch.nn.Module):  # from torch documentation TODO look up what it doe
             c = A[1].grad
             R[0] = A[1] * c
             R[0] = R[0][walk[0]]
-
+            R[0].detach().numpy()
             z = epsilon + roh(self.input).forward(A[0],edge_index)
             z = z[walk[1]]
             #R[0] = R[0][walk[0]]
@@ -82,9 +84,10 @@ class GNN(torch.nn.Module):  # from torch documentation TODO look up what it doe
             (z * s.data).sum().backward()
             c = A[0].grad
             test = A[0] * c
+            #print(R[0].size(),test.size())
 
-            print("done walk")
-        return R
+            all.append(R[0])
+        return all
 
 class MLP(torch.nn.Module):  # from torch documentation TODO look up what it does
     """
@@ -152,7 +155,9 @@ class MLP(torch.nn.Module):  # from torch documentation TODO look up what it doe
 
         #print(test)
         #print(R)
-        return R
+
+
+        return R,test
 
 
 def train(batchsize, train_set, valid_set, gnn, mlp, adj, x, rng, optimizer):
@@ -201,6 +206,7 @@ def train(batchsize, train_set, valid_set, gnn, mlp, adj, x, rng, optimizer):
 def explains(train_set, test_set, gnn, mlp, edge_index, x,adj):
 
     src, tar = test_set["source_node"], test_set["target_node"]
+
     train_src, train_tar = train_set["source_node"], train_set["target_node"]
 
     walks_all = utils.walks(adj)
@@ -208,17 +214,30 @@ def explains(train_set, test_set, gnn, mlp, edge_index, x,adj):
     helper = np.vstack((train_src,train_tar)).T.tolist()
     tmp = np.vstack((src,tar)).T.tolist()
     idx = [helper.index(tmp[n]) for n in range(len(tmp))]
+
     # forward passes
     mid = gnn(x, edge_index)  # features, edgeindex
     pos_pred = mlp(mid[train_src], mid[train_tar])
 
     p = []
-
+    neg = test_set["target_node_neg"][0][0]
     for node in range(len(idx)):
         walks = utils_func.find_walks(train_src[node],train_tar[node],walks_all)
         p += gnn.lrp(x, edge_index, walks,mid)
-        R = mlp.lrp(mid[train_src[node]], mid[train_tar[node]], pos_pred)
-    return R
+        R,d = mlp.lrp(mid[train_src[node]], mid[train_tar[node]], pos_pred)
+
+        utils_func.plot_explain(p,train_src[node],train_tar[node],walks)
+
+
+        walks = utils_func.find_walks(train_src[node], neg, walks_all)
+        p += gnn.lrp(x, edge_index, walks, mid)
+        R, d = mlp.lrp(mid[train_src[node]], mid[neg], pos_pred)
+
+        utils_func.plot_explain(p, train_src[node], neg, walks)
+
+        break
+
+
 
 @torch.no_grad()
 def test(batchsize, data_set, gnn, mlp, edge_index, x,adj):

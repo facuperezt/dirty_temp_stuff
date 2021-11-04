@@ -9,8 +9,9 @@ import matplotlib.pyplot as plt
 def shrink(rx,ry):
     rx = numpy.array(rx)
     ry = numpy.array(ry)
-    
-    if rx[0]==rx[1]==rx[2] and ry[0]==ry[1]==ry[2]:
+
+
+    if rx[0]==rx[1]==rx[2] and ry[0]==ry[1]==ry[2]: # Added numpy.all()
         rx = rx[0]+0.1*numpy.cos(numpy.linspace(0,2*numpy.pi,50))
         ry = ry[0]+0.1*numpy.sin(numpy.linspace(0,2*numpy.pi,50))
     else:
