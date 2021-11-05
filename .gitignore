@@ -44,3 +44,4 @@ dataset/ogbl_citation2/mapping/README.md
 dataset/ogbl_citation2/mapping/nodeidx2paperid.csv.gz
 venv
 *.pyc
+*.png

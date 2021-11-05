@@ -10,6 +10,7 @@ import LRP_modded
 import utils
 import matplotlib.pyplot as plt
 import copy
+import datetime
 
 # TODO reduce the whole nmumpy pytorch swapping
 
@@ -203,7 +204,7 @@ def train(batchsize, train_set, valid_set, gnn, mlp, adj, x, rng, optimizer):
 
     return sum(total_loss) / num_sample
 
-def explains(train_set, test_set, gnn, mlp, edge_index, x,adj):
+def explains(train_set, test_set, gnn, mlp, edge_index, x,adj,epoch):
 
     src, tar = test_set["source_node"], test_set["target_node"]
 
@@ -226,14 +227,14 @@ def explains(train_set, test_set, gnn, mlp, edge_index, x,adj):
         p += gnn.lrp(x, edge_index, walks,mid)
         R,d = mlp.lrp(mid[train_src[node]], mid[train_tar[node]], pos_pred)
 
-        utils_func.plot_explain(p,train_src[node],train_tar[node],walks)
+        utils_func.plot_explain(p,train_src[node],train_tar[node],walks,"pos",epoch)
 
 
         walks = utils_func.find_walks(train_src[node], neg, walks_all)
         p += gnn.lrp(x, edge_index, walks, mid)
         R, d = mlp.lrp(mid[train_src[node]], mid[neg], pos_pred)
 
-        utils_func.plot_explain(p, train_src[node], neg, walks)
+        utils_func.plot_explain(p, train_src[node], neg, walks,"neg",epoch)
 
         break
 
@@ -283,7 +284,7 @@ def test(batchsize, data_set, gnn, mlp, edge_index, x,adj):
     return (tmp, val)
 
 
-def main(batchsize=None, epochs=1, full_dataset=False, explain=False, use_year=False):
+def main(batchsize=1064, epochs=50, full_dataset=False, explain=False, use_year=False):
     # ----------------------- Set up
     # global stuff
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -336,7 +337,7 @@ def main(batchsize=None, epochs=1, full_dataset=False, explain=False, use_year=F
         loss = train(batchsize, train_set, valid_set, gnn, mlp, edges, x, rng, optimizer)
 
         # TODO logging for less blackbox
-        R = explains(train_set, mrr_train, gnn, mlp, edges, x,x_adj)
+        R = explains(train_set, mrr_train, gnn, mlp, edges, x,x_adj,i)
 
 
         train_mmr = test(batchsize, mrr_train, gnn, mlp, edges, x,x_adj)
@@ -354,7 +355,7 @@ def main(batchsize=None, epochs=1, full_dataset=False, explain=False, use_year=F
         v[i] = (valid_mrr[1].detach())
         t[i] = (test_mmr[1].detach())
 
-    if 2 == 3 :
+    if 2 == 2 :
         fig, (ax1, ax2) = plt.subplots(1, 2, sharex="all")
         fig.suptitle('Model Error')
         plt.xlim(50)

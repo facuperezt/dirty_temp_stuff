@@ -2,7 +2,7 @@ import igraph
 import numpy as np
 import matplotlib.pyplot as plt
 import utils
-
+from datetime import datetime
 
 def adjMatrix(edges, numNodes, selfLoops=True):
     """
@@ -39,7 +39,7 @@ def find_walks(src, tar, walks):
 
     return tmp
 
-def plot_explain(r,src,tar, walks):
+def plot_explain(r,src,tar, walks,pos, epoch):
     graph = igraph.Graph()
     nodes = list(set(np.asarray(walks).flatten()))
 
@@ -79,6 +79,8 @@ def plot_explain(r,src,tar, walks):
             alpha = np.clip(-20 * R.data.numpy(), 0, 1)
             plt.plot(tx, ty, alpha=alpha, color='blue', lw=1.2)
         n+= 1
-        print(n)
+
+    now = datetime.now()
     plt.show()
-    plt.savefig("posExample_explain.pdf")
+    epoch = str(epoch)
+    plt.savefig("plots/posExample_explain"+pos+epoch)
