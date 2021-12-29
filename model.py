@@ -180,15 +180,6 @@ def train(batchsize, train_set, valid_set, gnn, mlp, adj, x, rng, optimizer):
         # positive sampling
         out = torch.sigmoid(mlp(mid[train_src], mid[train_tar]))
         pos_loss = - torch.mean(torch.log(out + 1e-15))
-        # TODO shortend and make mor efficient
-        # negativ sampling TODO --> do we care if we hit double ?
-        """
-        neg_tar = rng.choice(x.shape[0], (train_src.shape[0], 20))
-        neg_loss = torch.zeros((train_src.shape[0], 1))
-        for i in range(neg_tar.shape[1]):
-            out = torch.sigmoid(mlp(mid[train_src], mid[neg_tar[:, i]]))
-            neg_loss += torch.log(1 - out + 1e-15) / 20
-        """
 
         neg_tar = torch.randint(low=0, high=22064, size=train_src.size(),dtype=torch.long) #30657
         out = torch.sigmoid(mlp(mid[train_src], mid[neg_tar]))
@@ -261,45 +252,6 @@ def test(batchsize, data_set, gnn, mlp, edge_index, x, evaluator):
             'y_pred_neg': neg_pred,
         })['mrr_list'].mean().item()
 
-
-    """
-    for i in range(0, data_set["source_node"].shape[0], batchsize):
-        # Set up the batch
-        idx = permutation[i:i + batchsize]
-        src, tar, tar_neg = data_set["source_node"][idx], data_set["target_node"][idx], data_set["target_node_neg"][idx]
-
-        # forward passes
-        mid = gnn(x, edge_index)  # features, edgeindex
-
-        # positive sampling
-        pos_pred = torch.sigmoid(mlp(mid[src], mid[tar])).detach()
-        tmp = torch.ones(pos_pred.size())
-        pos_helper = torch.hstack((pos_pred, tmp))
-
-        tmp = torch.zeros((21, 126, 2))
-        tmp[0, :, :] = pos_helper
-        # neg sampling
-        for i in range(tar_neg.shape[1]):
-            prediction = torch.sigmoid(mlp(mid[src], mid[tar_neg[:, i]])).detach()
-            neg_helper = torch.hstack((prediction, torch.zeros(prediction.size())))
-            tmp[i + 1, :, :] = neg_helper
-
-        values = []
-        # TODO shortend and make mor efficient
-        for row in range(0, 22):
-            tmp2 = tmp[:, row, :]
-            tmp2 = tmp2[torch.argsort(tmp2[:, 0], descending=True, dim=0)]
-            maybe = tmp2[:, 1] == 1
-            values.append(maybe.nonzero())
-            tmp[:, row, :] = tmp2
-
-        for z in range(len(values)):
-            values[z] = 1 / (values[z] + 1)
-        val = sum(values) / 126
-    
-    return (tmp, val)
-
-    """
 
 def main(batchsize=None, epochs=1, full_dataset=False, explain=True, use_year=False,save=False,load=True):
     # ----------------------- Set up
