@@ -4,10 +4,13 @@ import torch_geometric.data as data
 import torch
 
 
-def main(full_dataset=False, use_year=False):
+def main(full_dataset=False, use_year=False,explain=False):
     if not full_dataset:
         # Load all dataset parts
-        edges = pd.read_csv("data/Data_small_2reindexd")
+        if explain:
+            edges = pd.read_csv("data/Data_small_2reindexd", names=['source', 'target'])
+        else :
+            edges = pd.read_csv("data/Data_small_edgeIndex",names=['source', 'target'])
         features = pd.read_csv("data/Data_small_2_features")
         valid = torch.load("data/valid_small.pt")
         test = torch.load("data/test_small.pt")
@@ -23,6 +26,8 @@ def main(full_dataset=False, use_year=False):
         valid = torch.load("data/valid.pt")
 
         year_path = "data/node_year.csv"
+
+
 
     # edge_index = [2, num_nodes] as tensor with [0,:] as source and [1,:] as target
     edge_index = torch.from_numpy(np.vstack((edges["source"], edges["target"])))
@@ -47,4 +52,5 @@ def main(full_dataset=False, use_year=False):
 
 
 if __name__ == "__main__":
-    main(full_dataset=False, use_year=False)
+    d, s = main(full_dataset=True, use_year=False)
+    print(d["edge_index"])

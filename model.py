@@ -1,16 +1,18 @@
-import numpy as np
 import torch.nn
 from torch_geometric.nn import GCNConv
-from torch.nn import Linear
 from torch.nn.functional import relu
-import dataLoader
-import utils_func
-import utils_func as util
-import LRP_modded
-import utils
+from  ogb.linkproppred import Evaluator
+
+import numpy as np
 import matplotlib.pyplot as plt
+
 import copy
-import datetime
+
+import utils
+
+import utils_func
+import dataLoader
+import baselines
 
 # TODO reduce the whole nmumpy pytorch swapping
 
@@ -22,9 +24,9 @@ class GNN(torch.nn.Module):  # from torch documentation TODO look up what it doe
     def __init__(self):
         # build GNN here
         super(GNN, self).__init__()  # from torch documentation TODO look up what it does
-        self.input = GCNConv(128, 256)
-        self.hidden = GCNConv(256, 256)
-        self.output = GCNConv(256, 256)
+        self.input = GCNConv(128, 256,bias=False)
+        self.hidden = GCNConv(256, 256,bias=False)
+        self.output = GCNConv(256, 256,bias=False)
 
     def forward(self, x, edge_index):
         h = self.input(x, edge_index)
@@ -36,71 +38,64 @@ class GNN(torch.nn.Module):  # from torch documentation TODO look up what it doe
         h = self.output(X, edge_index)
         return h
 
-    def lrp(self,x,edge_index,walks,r,epsilon=0.1,gamma=0.1,):
-
+    def lrp(self, x, edge_index, walk, r_src, r_tar, src, tar, epsilon=0.0, gamma=0.0):
         def roh(layer):
             with torch.no_grad():
                 cp = copy.deepcopy(layer)
-                cp.lin.weight[:,:] = cp.lin.weight + gamma * torch.clamp(cp.lin.weight, min=0)
+                cp.lin.weight[:, :] = cp.lin.weight + gamma * torch.clamp(cp.lin.weight, min=0)
                 return cp
 
         A = [None] * 3
         R = [None] * 3
 
-        R[-1] = r
-
         A[0] = x
         A[0] = relu(A[0]).data.clone().requires_grad_(True)
-        A[1] = relu(self.input(A[0],edge_index)).data.clone().requires_grad_(True)
-        A[2] = relu(self.hidden(A[1],edge_index)).data.clone().requires_grad_(True)
+        A[1] = relu(self.input(A[0], edge_index)).data.clone().requires_grad_(True)
+        A[2] = relu(self.hidden(A[1], edge_index)).data.clone().requires_grad_(True)
 
-        all = []
-        for walk in walks:
 
-            R[-1] = r
-            #print(r.size())
+        if walk[-1] == tar:
+            R[-1] = r_tar
+        else :
+            R[-1] = r_src
 
-            z = epsilon + roh(self.output).forward(A[2],edge_index)
-            z = z[walk[2]]
-            R[2]= R[2][walk[2]]
-            s = R[2]/(z+1e-15)
-            (z*s.data).sum().backward()
-            c = A[2].grad
-            R[1] = A[2] * c
-            R[1] = R[1][walk[1]]
+        z = epsilon + roh(self.output).forward(A[2], edge_index)
+        z = z[walk[2]]
+        s = R[2] / (z + 1e-15)
+        (z * s.data).sum().backward()
+        c = A[2].grad
+        R[1] = A[2] * c
+        R[1] = R[1][walk[1]]
 
-            z = epsilon + roh(self.hidden).forward(A[1],edge_index)
-            z = z[walk[1]]
-            #R[1] = R[1][walk[1]]
-            s = R[1]/(z+1e-15)
-            (z*s.data).sum().backward()
-            c = A[1].grad
-            R[0] = A[1] * c
-            R[0] = R[0][walk[0]]
-            R[0].detach().numpy()
-            z = epsilon + roh(self.input).forward(A[0],edge_index)
-            z = z[walk[1]]
-            #R[0] = R[0][walk[0]]
-            s = R[0] / (z + 1e-15)
-            (z * s.data).sum().backward()
-            c = A[0].grad
-            test = A[0] * c
-            #print(R[0].size(),test.size())
+        z = epsilon + roh(self.hidden).forward(A[1], edge_index)
+        z = z[walk[1]]
+        s = R[1] / (z + 1e-15)
+        (z * s.data).sum().backward()
+        c = A[1].grad
+        R[0] = A[1] * c
+        R[0] = R[0][walk[0]]
 
-            all.append(R[0])
-        return all
+        z = epsilon + roh(self.input).forward(A[0], edge_index)
+        z = z[walk[1]]
+        s = R[0] / (z + 1e-15)
+        (z * s.data).sum().backward()
+        c = A[0].grad
+        test = A[0] * c
+
+        return R[0]
+
 
 class MLP(torch.nn.Module):  # from torch documentation TODO look up what it does
     """
     3-Layer MLP with 256 input and hidden neurons and 1 output neuron
     """
 
-    def __init__(self, batchsize):
+    def __init__(self):
         # build MLP here
         super(MLP, self).__init__()  # from torch documentation TODO look up what it does
-        self.input = Linear(256, 256)
-        self.hidden = Linear(256, 256)
-        self.output = Linear(256, 1)
+        self.input = torch.nn.Linear(256, 256,bias=False)
+        self.hidden = torch.nn.Linear(256, 256,bias=False)
+        self.output = torch.nn.Linear(256, 1,bias=False)
 
     def forward(self, src, tar):
         x = src + tar  # TransE model embedding
@@ -118,47 +113,54 @@ class MLP(torch.nn.Module):  # from torch documentation TODO look up what it doe
         # if save : self.R[-1] = h #TODO is it correct that a and R are the same ????
         return h
 
-    def lrp(self, src, tar, r, epsilon=0.1, gamma=0.1):
-
+    def lrp(self, src, tar, r, epsilon=0.0, gamma=0.0):
         def roh(layer):
             with torch.no_grad():
                 cp = copy.deepcopy(layer)
-                cp.weight[:,:] = cp.weight + gamma * torch.clamp(cp.weight, min=0)
+                cp.weight[:, :] = cp.weight + gamma * torch.clamp(cp.weight, min=0)
                 return cp
 
         A = [None] * 3
         R = [None] * 3
 
+
         R[-1] = r
 
-        A[0] = src + tar
-        A[0] = relu(A[0]).data.clone().requires_grad_(True)
-        A[1] = relu(self.input(A[0])).data.clone().requires_grad_(True)
+        src = src.data.clone().requires_grad_(True)
+        tar = tar.data.clone().requires_grad_(True)
+
+        A[0] = relu(src + tar)
+        A[0] = A[0].data.clone().requires_grad_(True)
+        A[1] = relu(self.input(src+tar)).data.clone().requires_grad_(True)
         A[2] = relu(self.hidden(A[1])).data.clone().requires_grad_(True)
 
         z = epsilon + roh(self.output).forward(A[2])
-        s = R[2]/(z+1e-15)
-        (z*s.data).sum().backward()
+        s = R[2] / (z + 1e-15)
+        (z * s.data).sum().backward()
         c = A[2].grad
         R[1] = A[2] * c
 
         z = epsilon + roh(self.hidden).forward(A[1])
-        s = R[1]/(z+1e-15)
-        (z*s.data).sum().backward()
+        s = R[1] / (z + 1e-15)
+        (z * s.data).sum().backward()
         c = A[1].grad
         R[0] = A[1] * c
 
+        """
         z = epsilon + roh(self.input).forward(A[0])
         s = R[0] / (z + 1e-15)
         (z * s.data).sum().backward()
         c = A[0].grad
         test = A[0] * c
+        """
 
-        #print(test)
-        #print(R)
+        z = epsilon + roh(self.input).forward(relu(src+tar))
+        s = R[0] / (z + 1e-15)
+        (z * s.data).sum().backward()
+        src_grad = src.grad
+        tar_grad = tar.grad
 
-
-        return R,test
+        return src * src_grad, tar * tar_grad
 
 
 def train(batchsize, train_set, valid_set, gnn, mlp, adj, x, rng, optimizer):
@@ -173,22 +175,24 @@ def train(batchsize, train_set, valid_set, gnn, mlp, adj, x, rng, optimizer):
         # Set up the batch
         idx = permutation[i:i + batchsize]
         train_src, train_tar = train_set["source_node"][idx], train_set["target_node"][idx]
-
         # forward passes
         mid = gnn(x, adj)  # features, edgeindex
-
         # positive sampling
-        out = torch.sigmoid(mlp(mid[train_src], mid[train_tar]))  # ref says src,dst
-        pos_loss = - torch.mean(torch.log(out + 1e-15))  # TODO  why inf if not added 1e-15
-
+        out = torch.sigmoid(mlp(mid[train_src], mid[train_tar]))
+        pos_loss = - torch.mean(torch.log(out + 1e-15))
         # TODO shortend and make mor efficient
         # negativ sampling TODO --> do we care if we hit double ?
+        """
         neg_tar = rng.choice(x.shape[0], (train_src.shape[0], 20))
         neg_loss = torch.zeros((train_src.shape[0], 1))
         for i in range(neg_tar.shape[1]):
-            out = torch.sigmoid(mlp(mid[train_src], mid[neg_tar[:, i]]))  # ref says src,dst
+            out = torch.sigmoid(mlp(mid[train_src], mid[neg_tar[:, i]]))
             neg_loss += torch.log(1 - out + 1e-15) / 20
+        """
 
+        neg_tar = torch.randint(low=0, high=22064, size=train_src.size(),dtype=torch.long) #30657
+        out = torch.sigmoid(mlp(mid[train_src], mid[neg_tar]))
+        neg_loss = torch.log(1 - out + 1e-15)
         neg_loss = - torch.mean(neg_loss)
 
         # compute error
@@ -204,56 +208,69 @@ def train(batchsize, train_set, valid_set, gnn, mlp, adj, x, rng, optimizer):
 
     return sum(total_loss) / num_sample
 
-def explains(train_set, test_set, gnn, mlp, edge_index, x,adj,epoch):
 
-    src, tar = test_set["source_node"], test_set["target_node"]
+def explains(train_set, test_set, gnn, mlp, edge_index, x, adj, epoch):
 
-    train_src, train_tar = train_set["source_node"], train_set["target_node"]
-
+    src, tar= test_set["source_node"], test_set["target_node"]
     walks_all = utils.walks(adj)
-
-    helper = np.vstack((train_src,train_tar)).T.tolist()
-    tmp = np.vstack((src,tar)).T.tolist()
-    idx = [helper.index(tmp[n]) for n in range(len(tmp))]
 
     # forward passes
     mid = gnn(x, edge_index)  # features, edgeindex
-    pos_pred = mlp(mid[train_src], mid[train_tar])
+    pos_pred = mlp(mid[src], mid[tar])
 
-    p = []
-    neg = test_set["target_node_neg"][0][0]
-    for node in range(len(idx)):
-        walks = utils_func.find_walks(train_src[node],train_tar[node],walks_all)
-        p += gnn.lrp(x, edge_index, walks,mid)
-        R,d = mlp.lrp(mid[train_src[node]], mid[train_tar[node]], pos_pred)
-
-        utils_func.plot_explain(p,train_src[node],train_tar[node],walks,"pos",epoch)
-
-
-        walks = utils_func.find_walks(train_src[node], neg, walks_all)
-        p += gnn.lrp(x, edge_index, walks, mid)
-        R, d = mlp.lrp(mid[train_src[node]], mid[neg], pos_pred)
-
-        utils_func.plot_explain(p, train_src[node], neg, walks,"neg",epoch)
-
-        break
-
-
+    samples = [0,1,2,3,8,9]
+    for i in samples:
+        print(i,src[i])
+        walks = utils_func.find_walks(src[i], tar[i], walks_all)
+        r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i])
+        p = []
+        for walk in walks:
+            p.append(gnn.lrp(x, edge_index, walk, r_src, r_tar, src[i], tar[i]))
+        utils_func.plot_explain(p, src[i], tar[i], walks, "pos", epoch,i)
 
 @torch.no_grad()
-def test(batchsize, data_set, gnn, mlp, edge_index, x,adj):
+def test(batchsize, data_set, gnn, mlp, edge_index, x, evaluator):
     tmp = data_set["source_node"].shape[0]
     permutation = torch.randperm(tmp)
-    total_loss = []
-    num_sample = 0
+    src, tar, tar_neg = data_set["source_node"], data_set["target_node"], data_set["target_node_neg"]
 
+    mid = gnn(x, edge_index)  # features, edgeindex
+
+    # TEsting something:
+
+    #positive sampling
+    pos_preds = []
+    for i in range(0, data_set["source_node"].shape[0], batchsize):
+        idx = permutation[i:i + batchsize]
+        pos_preds += [mlp(mid[src[idx]], mid[tar[idx]]).squeeze().cpu()]
+    pos_pred = torch.cat(pos_preds, dim=0)
+
+    neg_preds = []
+    src = src.view(-1, 1).repeat(1, 20).view(-1)
+    tar_neg = tar_neg.view(-1)
+    for i in range(0, data_set["source_node"].shape[0], batchsize):
+        idx = permutation[i:i + batchsize]
+        #TODO batching
+        neg_preds += [mlp(mid[src], mid[tar_neg]).squeeze().cpu()]
+    #print(neg_preds[0].size(),len(neg_preds))
+    neg_pred = torch.cat(neg_preds, dim=0).view(-1, 20)
+    #print(neg_pred.size())
+
+    return evaluator.eval({
+            'y_pred_pos': pos_pred,
+            'y_pred_neg': neg_pred,
+        })['mrr_list'].mean().item()
+
+
+    """
     for i in range(0, data_set["source_node"].shape[0], batchsize):
         # Set up the batch
         idx = permutation[i:i + batchsize]
         src, tar, tar_neg = data_set["source_node"][idx], data_set["target_node"][idx], data_set["target_node_neg"][idx]
+
         # forward passes
         mid = gnn(x, edge_index)  # features, edgeindex
-        print(src.size())
+
         # positive sampling
         pos_pred = torch.sigmoid(mlp(mid[src], mid[tar])).detach()
         tmp = torch.ones(pos_pred.size())
@@ -279,28 +296,27 @@ def test(batchsize, data_set, gnn, mlp, edge_index, x,adj):
         for z in range(len(values)):
             values[z] = 1 / (values[z] + 1)
         val = sum(values) / 126
-        print(val)
-
+    
     return (tmp, val)
 
+    """
 
-def main(batchsize=1064, epochs=50, full_dataset=False, explain=False, use_year=False):
+def main(batchsize=None, epochs=1, full_dataset=False, explain=True, use_year=False,save=False,load=True):
     # ----------------------- Set up
-    # global stuff
+    # globals
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     rng = np.random.default_rng()
 
     # loading the data
     if use_year:
-        data, split, year = dataLoader.main(full_dataset=full_dataset, use_year=use_year)
+        data, split, year = dataLoader.main(full_dataset=full_dataset, use_year=use_year,explain=False)
     else:
-        data, split = dataLoader.main(full_dataset=full_dataset, use_year=use_year)
+        data, split = dataLoader.main(full_dataset=full_dataset, use_year=use_year,explain=True)
 
     x, edges = data["x"], data["edge_index"]
 
-    x_adj = util.adjMatrix(edges, x.shape[0])
+    x_adj = utils_func.adjMatrix(edges, x.shape[0])
     x_adj = torch.from_numpy(x_adj)
-
 
     train_set, valid_set, test_set = split["train"], split["valid"], split["test"]
 
@@ -313,59 +329,55 @@ def main(batchsize=1064, epochs=50, full_dataset=False, explain=False, use_year=
 
     # initilaization models
     gnn = GNN()
-    mlp = MLP(batchsize)
+    mlp = MLP()
+
+    if load==True:
+        gnn.load_state_dict(torch.load("model/gnn"))
+        mlp.load_state_dict(torch.load("model/mlp"))
+
+    if explain ==True:
+        exp, meh = dataLoader.main(full_dataset=full_dataset, use_year=use_year,explain=True)
+        exp_data,exp_edges = exp["x"],exp["edge_index"]
+        exp_adj = utils_func.adjMatrix(exp_edges,exp_data.shape[0])
+
     gnn.to(device), mlp.to(device), data.to(device)
     optimizer = torch.optim.Adam(
         list(gnn.parameters()) + list(mlp.parameters()))
+
     # adjusting batchsize for full Dtataset
     if batchsize is None:
         batchsize = edges.shape[1]
-
-
-    # initilization of LRP
-    if explain:
-        graph = {"layout": utils.layout(x_adj, None), 'adjacency': x_adj, "target": 1}
-        LRP_modded.plot([1], graph)
+    evaluator = Evaluator(name='ogbl-citation2')
 
     # ----------------------- training & testing
-    old = 0
-    v = torch.zeros((50, 1))
-    t = torch.zeros((50, 1))
-    l = torch.zeros((50, 1))
+    valid_mrr = torch.zeros((epochs, 1))
+    test_mmr = torch.zeros((epochs, 1))
+    loss = torch.zeros((epochs, 1))
     for i in range(0, epochs):
 
-        loss = train(batchsize, train_set, valid_set, gnn, mlp, edges, x, rng, optimizer)
+        loss[i] = train(batchsize, train_set, valid_set, gnn, mlp, edges, x, rng, optimizer).detach()
 
-        # TODO logging for less blackbox
-        R = explains(train_set, mrr_train, gnn, mlp, edges, x,x_adj,i)
+        test_mmr[i] = test(batchsize, test_set, gnn, mlp, edges, x, evaluator)
+        valid_mrr[i] = test(batchsize, valid_set, gnn, mlp, edges, x, evaluator)
 
+        if i == epochs - 1 and explain == True:
+            explains(train_set, valid_set, gnn, mlp, exp_edges, exp_data, exp_adj, i)
 
-        train_mmr = test(batchsize, mrr_train, gnn, mlp, edges, x,x_adj)
-        test_mmr = test(batchsize, test_set, gnn, mlp, edges, x,x_adj)
-        valid_mrr = test(batchsize, valid_set, gnn, mlp, edges, x,x_adj)
-        # TODO logging for less blackbox
+    if save == True:
+        torch.save(gnn.state_dict(),"model/gnn")
+        torch.save(mlp.state_dict(),"model/mlp")
 
-        old = test_mmr[1]
-        # TODO stopping criteria
-        if valid_mrr[1] >= 50:
-            print("Reached treshold ")
-            break
-
-        l[i] = loss.detach()
-        v[i] = (valid_mrr[1].detach())
-        t[i] = (test_mmr[1].detach())
-
-    if 2 == 2 :
+    if 2 == 2:
         fig, (ax1, ax2) = plt.subplots(1, 2, sharex="all")
         fig.suptitle('Model Error')
-        plt.xlim(50)
-        y = np.arange(0, 50)
-        ax1.plot(y, v, label="Valid MRR")
-        ax1.plot(y, t, label="Test MRR")
-        ax2.plot(y, l, label="Trainings Error")
+        plt.xlim(100)
+        y = np.arange(0, 100)
+        ax1.plot(y, valid_mrr, label="Valid MRR")
+        ax1.plot(y, test_mmr, label="Test MRR")
+        ax2.plot(y, loss, label="Trainings Error")
         ax1.legend(), ax2.legend()
         ax1.grid(True), ax2.grid(True)
-        plt.xlim(50)
+        plt.xlim(100)
         plt.savefig("plots/errors.pdf")
         plt.show()
 

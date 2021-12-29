@@ -94,6 +94,7 @@ def train(model, predictor, data, split_edge, optimizer, batch_size,adj_t):
         dst_neg = torch.randint(0, data.num_nodes, src.size(),
                                 dtype=torch.long, device=h.device)
         neg_out = predictor(h[src], h[dst_neg])
+        print(neg_out.size(),pos_out.size())
         neg_loss = -torch.log(1 - neg_out + 1e-15).mean()
 
         loss = pos_loss + neg_loss
@@ -152,7 +153,7 @@ def main():
     parser.add_argument('--num_layers', type=int, default=3)
     parser.add_argument('--hidden_channels', type=int, default=256)
     parser.add_argument('--dropout', type=float, default=0)
-    parser.add_argument('--batch_size', type=int, default=64 * 1024)
+    parser.add_argument('--batch_size', type=int, default=1024)
     parser.add_argument('--lr', type=float, default=0.0005)
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--eval_steps', type=int, default=1)
@@ -164,9 +165,13 @@ def main():
     device = torch.device(device)
 
 
-    dataset,split_edge = dataLoader.main(full_dataset=False,use_year=False)
+    dataset,split_edge = dataLoader.main(full_dataset=True,use_year=False)
     data = dataset["x"]
 
+    print("edges over all",dataset["edge_index"].size())
+
+    print("training edges",split_edge["train"]["source_node"].size())
+    print()
     adj_t = utils_func.adjMatrix(dataset["edge_index"],data.shape[0])
 
 
@@ -187,6 +192,7 @@ def main():
     # Pre-compute GCN normalization.
     #TODO not the most efficient way
     deg = utils_func.degMatrix(adj_t)
+    deg = adj_t.sum(axis=1).to(torch.float)
 
     deg_inv_sqrt = deg ** (-0.5)
     deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0

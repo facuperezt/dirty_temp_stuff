@@ -131,7 +131,7 @@ def train(model, predictor, data, split_edge, optimizer, batch_size):
         num_examples = pos_out.size(0)
         total_loss += loss.item() * num_examples
         total_examples += num_examples
-
+        break
     return total_loss / total_examples
 
 
@@ -168,7 +168,7 @@ def test(model, predictor, data, split_edge, evaluator, batch_size):
     train_mrr = test_split('eval_train')
     valid_mrr = test_split('valid')
     test_mrr = test_split('test')
-
+    print("test mmr",test_mrr.size(),test_mrr)
     return train_mrr, valid_mrr, test_mrr
 
 
@@ -180,11 +180,11 @@ def main():
     parser.add_argument('--num_layers', type=int, default=3)
     parser.add_argument('--hidden_channels', type=int, default=256)
     parser.add_argument('--dropout', type=float, default=0)
-    parser.add_argument('--batch_size', type=int, default=64 * 1024)
+    parser.add_argument('--batch_size', type=int, default= 1024)
     parser.add_argument('--lr', type=float, default=0.0005)
-    parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument('--epochs', type=int, default=2)
     parser.add_argument('--eval_steps', type=int, default=1)
-    parser.add_argument('--runs', type=int, default=10)
+    parser.add_argument('--runs', type=int, default=1)
     args = parser.parse_args()
     print(args)
 
@@ -193,7 +193,9 @@ def main():
 
     dataset = PygLinkPropPredDataset(name='ogbl-citation2',
                                      transform=T.ToSparseTensor())
+
     data = dataset[0]
+    print(data)
     data.adj_t = data.adj_t.to_symmetric()
     data = data.to(device)
 
@@ -207,7 +209,6 @@ def main():
         'target_node': split_edge['train']['target_node'][idx],
         'target_node_neg': split_edge['valid']['target_node_neg'],
     }
-
     if args.use_sage:
         model = SAGE(data.num_features, args.hidden_channels,
                      args.hidden_channels, args.num_layers,
@@ -219,14 +220,17 @@ def main():
 
         # Pre-compute GCN normalization.
         adj_t = data.adj_t.set_diag()
-        print("adjt",adj_t, adj_t.size)
         deg = adj_t.sum(dim=1).to(torch.float)
-        print(deg, deg.shape)
         deg_inv_sqrt = deg.pow(-0.5)
         deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
         adj_t = deg_inv_sqrt.view(-1, 1) * adj_t * deg_inv_sqrt.view(1, -1)
-        print(deg_inv_sqrt.view(-1, 1),deg_inv_sqrt.view(-1, 1).shape)
         data.adj_t = adj_t
+
+    print(split_edge["train"]["source_node"].size())
+    src = split_edge["train"]["source_node"][0]
+    tar = split_edge["train"]["target_node"][1]
+    print(src,tar)
+    #print(adj_t)
 
     predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
                               args.num_layers, args.dropout).to(device)
@@ -246,13 +250,14 @@ def main():
                          args.batch_size)
             print(f'Run: {run + 1:02d}, Epoch: {epoch:02d}, Loss: {loss:.4f}')
 
-            if epoch % args.eval_steps == 0:
+            if 2 == 2 :#if epoch % args.eval_steps == 0:
                 result = test(model, predictor, data, split_edge, evaluator,
                               args.batch_size)
                 #logger.add_result(run, result)
 
-                if epoch % args.log_steps == 0:
+                if 2==2:#if epoch % args.log_steps == 0:
                     train_mrr, valid_mrr, test_mrr = result
+                    print("test")
                     print(f'Run: {run + 1:02d}, '
                           f'Epoch: {epoch:02d}, '
                           f'Loss: {loss:.4f}, '
