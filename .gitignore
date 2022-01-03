@@ -4,6 +4,7 @@ resources/
 dataset/
 OGB Code/
 model/
+SEAl Coe/
 test.py
 LRP_bridge.py
 venv

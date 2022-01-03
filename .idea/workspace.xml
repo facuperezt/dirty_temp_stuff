@@ -34,7 +34,7 @@
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/OGB Code" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/SEAL Coe/SEAL-master" />
   </component>
   <component name="RunManager" selected="Python.baselines">
     <configuration name="baselines" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
@@ -214,6 +214,8 @@
       <workItem from="1640032831611" duration="19000" />
       <workItem from="1640085209086" duration="1201000" />
       <workItem from="1640799590311" duration="6777000" />
+      <workItem from="1641122741266" duration="1227000" />
+      <workItem from="1641221048036" duration="1322000" />
     </task>
     <servers />
   </component>
