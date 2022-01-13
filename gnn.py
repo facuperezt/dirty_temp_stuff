@@ -198,7 +198,7 @@ def main():
     print(data)
     data.adj_t = data.adj_t.to_symmetric()
     data = data.to(device)
-
+    print(data.adj_t)
     split_edge = dataset.get_edge_split()
 
     # We randomly pick some training samples that we want to evaluate on:
@@ -225,7 +225,7 @@ def main():
         deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
         adj_t = deg_inv_sqrt.view(-1, 1) * adj_t * deg_inv_sqrt.view(1, -1)
         data.adj_t = adj_t
-
+    print(data.adj_t)
     print(split_edge["train"]["source_node"].size())
     src = split_edge["train"]["source_node"][0]
     tar = split_edge["train"]["target_node"][1]

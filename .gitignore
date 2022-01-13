@@ -10,7 +10,7 @@ LRP_bridge.py
 venv
 *.pyc
 *.png
-verification.py
+outdated/verification.py
 *.xml
 *.iml
 *.zip

@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import utils
 import matplotlib.lines as mlines
 
+
 def adjMatrix(edges, numNodes, selfLoops=True):
     """
     Function to calculate Adjacency MMatrix given an edge Array
@@ -29,8 +30,10 @@ def degMatrix(adj_t):
 
     return deg
 
+
 def find_walks(src, tar, walks):
     # TODO walks might be a bit weird retund walk 22063,22063,22063 --> artafect of model
+    # TODO combine walks and plt
     arr = np.asarray(walks)
     tmp = []
     """
@@ -64,68 +67,91 @@ def find_walks(src, tar, walks):
         elif arr[n][2] == src:
             tmp.append(arr[n])
 
-    #t1 = np.asarray(tmp)
-    #t2 = np.asarray(test)
-    #print(np.all(t1==t2))
+    # t1 = np.asarray(tmp)
+    # t2 = np.asarray(test)
+    # print(np.all(t1==t2))
 
-    #return (walks,graph,x,y)
+    # return (walks,graph,x,y)
     return tmp
 
-def plot_explain(r,src,tar, walks,pos, epoch,node):
+
+def plot_explain(r, src, tar, walks, pos, epoch, node):
     graph = igraph.Graph()
     nodes = list(set(np.asarray(walks).flatten()))
 
     for node in nodes:
         graph.add_vertices(str(node))
 
-    x,y = [],[]
-    for walk in walks :
-        graph.add_edges([(str(walk[0]),str(walk[1])),(str(walk[1]),str(walk[2]))])
-        x.append(nodes.index(walk[0])),y.append(nodes.index(walk[1]))
-        x.append(nodes.index(walk[1])),y.append(nodes.index(walk[2]))
+    x, y = [], []
+    for walk in walks:
+        graph.add_edges([(str(walk[0]), str(walk[1])), (str(walk[1]), str(walk[2]))])
+        x.append(nodes.index(walk[0])), y.append(nodes.index(walk[1]))
+        x.append(nodes.index(walk[1])), y.append(nodes.index(walk[2]))
 
     place = np.array(list(graph.layout_kamada_kawai()))
 
     # edges plotting
     n = 0
-    fig,axs = plt.subplots()
+    fig, axs = plt.subplots()
     for walk in walks:
-        a = [place[nodes.index(walk[0]),0],place[nodes.index(walk[1]),0],place[nodes.index(walk[2]),0]]
-        b = [place[nodes.index(walk[0]),1],place[nodes.index(walk[1]),1],place[nodes.index(walk[2]),1]]
-        tx, ty = utils.shrink(a,b)
+        a = [place[nodes.index(walk[0]), 0], place[nodes.index(walk[1]), 0], place[nodes.index(walk[2]), 0]]
+        b = [place[nodes.index(walk[0]), 1], place[nodes.index(walk[1]), 1], place[nodes.index(walk[2]), 1]]
+        tx, ty = utils.shrink(a, b)
 
         R = r[n].detach()
 
         R = R.sum()
-        print(walk,"with relevance of ",R)
-        axs.plot([place[x, 0], place[y, 0]], [place[x, 1], place[y, 1]], color='gray',lw=0.2, ls='dotted',alpha=0.3)
+        print(walk, "with relevance of ", R)
+        axs.plot([place[x, 0], place[y, 0]], [place[x, 1], place[y, 1]], color='gray', lw=0.2, ls='dotted', alpha=0.3)
 
         if R > 0.0:
-            alpha = np.clip(2*R.data.numpy(), 0, 1)
+            alpha = np.clip(2 * R.data.numpy(), 0, 1)
             axs.plot(tx, ty, alpha=alpha, color='red', lw=1.2)
             print("     and alpha of", alpha)
         if R < -0.0:
-            alpha = np.clip(-2*R.data.numpy(), 0, 1)
+            alpha = np.clip(-2 * R.data.numpy(), 0, 1)
             axs.plot(tx, ty, alpha=alpha, color='blue', lw=1.2)
             print("     and alpha of", alpha)
-        n+= 1
+        n += 1
 
     # nodes plotting
     axs.plot(place[:, 0], place[:, 1], 'o', color='black', ms=3)
-    axs.plot(place[nodes.index(src), 0], place[nodes.index(src), 1], 'o', color='green', ms=6,label="source node")
+    axs.plot(place[nodes.index(src), 0], place[nodes.index(src), 1], 'o', color='green', ms=6, label="source node")
     axs.plot(place[nodes.index(tar), 0], place[nodes.index(tar), 1], 'o', color='yellow', ms=6, label="target node")
 
-    #legend shenenigans & # plot specifics
-    axs.plot([], [], color='blue',label = "negative relevance")
-    axs.plot([], [], color='red',label="positive relevance")
+    # legend shenenigans & # plot specifics
+    axs.plot([], [], color='blue', label="negative relevance")
+    axs.plot([], [], color='red', label="positive relevance")
 
-    axs.legend(loc= 2,bbox_to_anchor=(-0.15, 1.14))
+    axs.legend(loc=2, bbox_to_anchor=(-0.15, 1.14))
     axs.axis("off")
-
 
     epoch = str(epoch)
     node = str(node)
-    name = "plots/LRP_plot_"+pos+"_example_"+node+".svg"
+    name = "plots/LRP_plot_" + pos + "_example_" + node + ".svg"
     fig.savefig(name)
     fig.show()
 
+
+def plot_curves(epochs, curves, labels, title,file_name="errors.pdf", combined=True):
+    # we assume all curves have the same length
+    # if we use combined we also assume that loss is always the last
+    if combined:
+        fig, (axs, ax2) = plt.subplots(1, 2, sharex="all")
+        ax2.legend(), ax2.grid(True)
+    else:
+        fig, axs = plt.subplots()
+
+    fig.suptitle(title)
+    axs.legend(), axs.grid(True)
+
+    x = np.arange(0, epochs)
+    plt.xlim(epochs + 5)
+
+    for i, l in curves, labels:
+        if i == curves[-1] and combined:  # last elem
+            ax2.plot(x, i, label=l)
+        axs.plot(x, i, label=l)
+
+    plt.savefig("plots/"+file_name)
+    plt.show()

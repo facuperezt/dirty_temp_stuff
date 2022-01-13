@@ -1,7 +1,9 @@
 import torch.nn
+import torch_geometric as tg
+from torch_sparse import SparseTensor
 from torch_geometric.nn import GCNConv
 from torch.nn.functional import relu
-from  ogb.linkproppred import Evaluator
+from ogb.linkproppred import Evaluator
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,7 +16,8 @@ import utils_func
 import dataLoader
 import baselines
 
-# TODO reduce the whole nmumpy pytorch swapping
+
+# TODO reduce the whole numpy pytorch swapping
 
 class GNN(torch.nn.Module):  # from torch documentation TODO look up what it does
     """
@@ -24,9 +27,9 @@ class GNN(torch.nn.Module):  # from torch documentation TODO look up what it doe
     def __init__(self):
         # build GNN here
         super(GNN, self).__init__()  # from torch documentation TODO look up what it does
-        self.input = GCNConv(128, 256,bias=False)
-        self.hidden = GCNConv(256, 256,bias=False)
-        self.output = GCNConv(256, 256,bias=False)
+        self.input = GCNConv(128, 256, bias=False)
+        self.hidden = GCNConv(256, 256, bias=False)
+        self.output = GCNConv(256, 256, bias=False)
 
     def forward(self, x, edge_index):
         h = self.input(x, edge_index)
@@ -39,6 +42,7 @@ class GNN(torch.nn.Module):  # from torch documentation TODO look up what it doe
         return h
 
     def lrp(self, x, edge_index, walk, r_src, r_tar, src, tar, epsilon=0.0, gamma=0.0):
+
         def roh(layer):
             with torch.no_grad():
                 cp = copy.deepcopy(layer)
@@ -53,10 +57,9 @@ class GNN(torch.nn.Module):  # from torch documentation TODO look up what it doe
         A[1] = relu(self.input(A[0], edge_index)).data.clone().requires_grad_(True)
         A[2] = relu(self.hidden(A[1], edge_index)).data.clone().requires_grad_(True)
 
-
         if walk[-1] == tar:
             R[-1] = r_tar
-        else :
+        else:
             R[-1] = r_src
 
         z = epsilon + roh(self.output).forward(A[2], edge_index)
@@ -93,9 +96,9 @@ class MLP(torch.nn.Module):  # from torch documentation TODO look up what it doe
     def __init__(self):
         # build MLP here
         super(MLP, self).__init__()  # from torch documentation TODO look up what it does
-        self.input = torch.nn.Linear(256, 256,bias=False)
-        self.hidden = torch.nn.Linear(256, 256,bias=False)
-        self.output = torch.nn.Linear(256, 1,bias=False)
+        self.input = torch.nn.Linear(256, 256, bias=False)
+        self.hidden = torch.nn.Linear(256, 256, bias=False)
+        self.output = torch.nn.Linear(256, 1, bias=False)
 
     def forward(self, src, tar):
         x = src + tar  # TransE model embedding
@@ -123,7 +126,6 @@ class MLP(torch.nn.Module):  # from torch documentation TODO look up what it doe
         A = [None] * 3
         R = [None] * 3
 
-
         R[-1] = r
 
         src = src.data.clone().requires_grad_(True)
@@ -131,7 +133,7 @@ class MLP(torch.nn.Module):  # from torch documentation TODO look up what it doe
 
         A[0] = relu(src + tar)
         A[0] = A[0].data.clone().requires_grad_(True)
-        A[1] = relu(self.input(src+tar)).data.clone().requires_grad_(True)
+        A[1] = relu(self.input(src + tar)).data.clone().requires_grad_(True)
         A[2] = relu(self.hidden(A[1])).data.clone().requires_grad_(True)
 
         z = epsilon + roh(self.output).forward(A[2])
@@ -154,7 +156,7 @@ class MLP(torch.nn.Module):  # from torch documentation TODO look up what it doe
         test = A[0] * c
         """
 
-        z = epsilon + roh(self.input).forward(relu(src+tar))
+        z = epsilon + roh(self.input).forward(relu(src + tar))
         s = R[0] / (z + 1e-15)
         (z * s.data).sum().backward()
         src_grad = src.grad
@@ -164,7 +166,7 @@ class MLP(torch.nn.Module):  # from torch documentation TODO look up what it doe
 
 
 def train(batchsize, train_set, valid_set, gnn, mlp, adj, x, rng, optimizer):
-    # generating random permutaion
+    # generating random permutation
     permutation = torch.randperm(train_set["source_node"].shape[0])
     total_loss = []
     num_sample = 0
@@ -176,12 +178,20 @@ def train(batchsize, train_set, valid_set, gnn, mlp, adj, x, rng, optimizer):
         idx = permutation[i:i + batchsize]
         train_src, train_tar = train_set["source_node"][idx], train_set["target_node"][idx]
         # forward passes
+
+        """
+        # removing positive link for training
+        tmp = adj.to_dense()
+        tmp[train_src,train_tar] = 0
+        tmp = SparseTensor.from_dense(tmp)
+        """
+
         mid = gnn(x, adj)  # features, edgeindex
         # positive sampling
         out = torch.sigmoid(mlp(mid[train_src], mid[train_tar]))
         pos_loss = - torch.mean(torch.log(out + 1e-15))
 
-        neg_tar = torch.randint(low=0, high=22064, size=train_src.size(),dtype=torch.long) #30657
+        neg_tar = torch.randint(low=0, high=22064, size=train_src.size(), dtype=torch.long)  # 30657
         out = torch.sigmoid(mlp(mid[train_src], mid[neg_tar]))
         neg_loss = torch.log(1 - out + 1e-15)
         neg_loss = - torch.mean(neg_loss)
@@ -195,29 +205,29 @@ def train(batchsize, train_set, valid_set, gnn, mlp, adj, x, rng, optimizer):
 
         total_loss.append(loss)
         num_sample += batchsize
-        print("Num of samples done: ", num_sample, "/", train_set["source_node"].shape[0], " batch loss :", loss)
+        # print("Num of samples done: ", num_sample, "/", train_set["source_node"].shape[0], " batch loss :", loss)
 
     return sum(total_loss) / num_sample
 
 
-def explains(train_set, test_set, gnn, mlp, edge_index, x, adj, epoch):
-
-    src, tar= test_set["source_node"], test_set["target_node"]
+def explains(train_set, test_set, gnn, mlp, adj, x, epoch):
+    src, tar = test_set["source_node"], test_set["target_node"]
     walks_all = utils.walks(adj)
 
     # forward passes
-    mid = gnn(x, edge_index)  # features, edgeindex
+    mid = gnn(x, adj)  # features, edgeindex
     pos_pred = mlp(mid[src], mid[tar])
 
-    samples = [0,1,2,3,8,9]
+    samples = [0, 1, 2, 3, 8, 9]
     for i in samples:
-        print(i,src[i])
+        print(i, src[i])
         walks = utils_func.find_walks(src[i], tar[i], walks_all)
         r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i])
         p = []
         for walk in walks:
-            p.append(gnn.lrp(x, edge_index, walk, r_src, r_tar, src[i], tar[i]))
-        utils_func.plot_explain(p, src[i], tar[i], walks, "pos", epoch,i)
+            p.append(gnn.lrp(x, adj, walk, r_src, r_tar, src[i], tar[i]))
+        utils_func.plot_explain(p, src[i], tar[i], walks, "pos", epoch, i)
+
 
 @torch.no_grad()
 def test(batchsize, data_set, gnn, mlp, edge_index, x, evaluator):
@@ -226,9 +236,8 @@ def test(batchsize, data_set, gnn, mlp, edge_index, x, evaluator):
     src, tar, tar_neg = data_set["source_node"], data_set["target_node"], data_set["target_node_neg"]
 
     mid = gnn(x, edge_index)  # features, edgeindex
-
-    # TEsting something:
-
+    """
+    
     #positive sampling
     pos_preds = []
     for i in range(0, data_set["source_node"].shape[0], batchsize):
@@ -243,17 +252,34 @@ def test(batchsize, data_set, gnn, mlp, edge_index, x, evaluator):
         idx = permutation[i:i + batchsize]
         #TODO batching
         neg_preds += [mlp(mid[src], mid[tar_neg]).squeeze().cpu()]
-    #print(neg_preds[0].size(),len(neg_preds))
+    
     neg_pred = torch.cat(neg_preds, dim=0).view(-1, 20)
-    #print(neg_pred.size())
+    """
+    pos_preds, neg_preds = [], []
+    for i in range(0, src.shape[0], batchsize):
+        idx = permutation[i:i + batchsize]
+        src_tmp = src[idx]
+        tar_tmp = tar[idx]
+        tar_neg_tmp = tar_neg[idx]
+
+        # positive sampling
+        pos_preds += [mlp(mid[src[idx]], mid[tar[idx]]).squeeze().cpu()]
+
+        # negative sampling
+        src_tmp = src_tmp.view(-1, 1).repeat(1, 20).view(-1)
+        tar_neg_tmp = tar_neg_tmp.view(-1)
+        neg_preds += [mlp(mid[src], mid[tar_neg]).squeeze().cpu()]
+
+    pos_pred = torch.cat(pos_preds, dim=0)
+    neg_pred = torch.cat(neg_preds, dim=0).view(-1, 20)
 
     return evaluator.eval({
-            'y_pred_pos': pos_pred,
-            'y_pred_neg': neg_pred,
-        })['mrr_list'].mean().item()
+        'y_pred_pos': pos_pred,
+        'y_pred_neg': neg_pred,
+    })['mrr_list'].mean().item()
 
 
-def main(batchsize=None, epochs=1, full_dataset=False, explain=True, use_year=False,save=False,load=True):
+def main(batchsize=None, epochs=1, full_dataset=False, explain=False, use_year=False, save=False, load=True):
     # ----------------------- Set up
     # globals
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -261,16 +287,20 @@ def main(batchsize=None, epochs=1, full_dataset=False, explain=True, use_year=Fa
 
     # loading the data
     if use_year:
-        data, split, year = dataLoader.main(full_dataset=full_dataset, use_year=use_year,explain=False)
+        dataset = dataLoader.LinkPredData("data/", use_year)
     else:
-        data, split = dataLoader.main(full_dataset=full_dataset, use_year=use_year,explain=True)
+        dataset = dataLoader.LinkPredData("data/")
 
-    x, edges = data["x"], data["edge_index"]
-
-    x_adj = utils_func.adjMatrix(edges, x.shape[0])
-    x_adj = torch.from_numpy(x_adj)
-
+    data = dataset.load()
+    split = dataset.get_edge_split()
     train_set, valid_set, test_set = split["train"], split["valid"], split["test"]
+
+    # TODO how to degree matrix lets do out for now
+    tmp = data.adj_t.set_diag()
+    deg = tmp.sum(dim=0).pow(-0.5)
+    deg[deg == float('inf')] = 0
+    tmp = deg.view(-1, 1) * tmp * deg.view(1, -1)
+    data.adj_t = tmp
 
     # manipulating train for mrr computation
     permutation = torch.randperm(int(np.array(train_set["source_node"].shape[0])))[0:126]
@@ -283,55 +313,53 @@ def main(batchsize=None, epochs=1, full_dataset=False, explain=True, use_year=Fa
     gnn = GNN()
     mlp = MLP()
 
-    if load==True:
+    if load == True:
         gnn.load_state_dict(torch.load("model/gnn"))
         mlp.load_state_dict(torch.load("model/mlp"))
 
-    if explain ==True:
-        exp, meh = dataLoader.main(full_dataset=full_dataset, use_year=use_year,explain=True)
-        exp_data,exp_edges = exp["x"],exp["edge_index"]
-        exp_adj = utils_func.adjMatrix(exp_edges,exp_data.shape[0])
-
     gnn.to(device), mlp.to(device), data.to(device)
+
     optimizer = torch.optim.Adam(
         list(gnn.parameters()) + list(mlp.parameters()))
+    evaluator = Evaluator(name='ogbl-citation2')
 
     # adjusting batchsize for full Dtataset
     if batchsize is None:
-        batchsize = edges.shape[1]
-    evaluator = Evaluator(name='ogbl-citation2')
+        batchsize = dataset.num_edges
+    if explain:
+        # to plot proper plot the the LRP-method we need all walks:
+        explain_data = dataset.load(transform=True, explain=True)
 
     # ----------------------- training & testing
     valid_mrr = torch.zeros((epochs, 1))
     test_mmr = torch.zeros((epochs, 1))
     loss = torch.zeros((epochs, 1))
+    old = 0
+
     for i in range(0, epochs):
+        # TODO testing routine
+        print(i)
+        # loss[i] = train(batchsize, train_set, valid_set, gnn, mlp, data.adj_t, data.x, rng, optimizer).detach()
 
-        loss[i] = train(batchsize, train_set, valid_set, gnn, mlp, edges, x, rng, optimizer).detach()
+        test_mmr[i] = test(batchsize, test_set, gnn, mlp, data.adj_t, data.x, evaluator)
+        valid_mrr[i] = test(batchsize, valid_set, gnn, mlp, data.adj_t, data.x, evaluator)
+        print(test_mmr[i], valid_mrr[i])
 
-        test_mmr[i] = test(batchsize, test_set, gnn, mlp, edges, x, evaluator)
-        valid_mrr[i] = test(batchsize, valid_set, gnn, mlp, edges, x, evaluator)
+        if valid_mrr[i] > old:
+            old = valid_mrr[i]
+            tmp_gnn = copy.deepcopy(gnn.state_dict())
+            tmp_nn = copy.deepcopy(mlp.state_dict())
 
-        if i == epochs - 1 and explain == True:
-            explains(train_set, valid_set, gnn, mlp, exp_edges, exp_data, exp_adj, i)
+        if i == epochs - 1 and explain:
+            explains(train_set, valid_set, gnn, mlp, explain_data.adj, explain_data.x, i)
 
-    if save == True:
-        torch.save(gnn.state_dict(),"model/gnn")
-        torch.save(mlp.state_dict(),"model/mlp")
+    if save:
+        torch.save(tmp_gnn, "model/gnn")
+        torch.save(tmp_nn, "model/mlp")
 
-    if 2 == 2:
-        fig, (ax1, ax2) = plt.subplots(1, 2, sharex="all")
-        fig.suptitle('Model Error')
-        plt.xlim(100)
-        y = np.arange(0, 100)
-        ax1.plot(y, valid_mrr, label="Valid MRR")
-        ax1.plot(y, test_mmr, label="Test MRR")
-        ax2.plot(y, loss, label="Trainings Error")
-        ax1.legend(), ax2.legend()
-        ax1.grid(True), ax2.grid(True)
-        plt.xlim(100)
-        plt.savefig("plots/errors.pdf")
-        plt.show()
+    if 2 == 3:
+        utils_func.plot_curves(epochs, [valid_mrr, test_mrr, loss],
+                               ["Valid MRR", "Test MRR", "Trainings Error"], 'Model Error', )
 
 
 if __name__ == "__main__":
