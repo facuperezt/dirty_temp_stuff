@@ -34,7 +34,7 @@
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/SEAL Coe/SEAL-master" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../../../Desktop/data/solution_Ronja_Froelian.ipynb" />
   </component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
@@ -109,28 +109,6 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="dataset_pyg" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="BA_Code" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/OGB Code/ogb-master/ogb/linkproppred" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/OGB Code/ogb-master/ogb/linkproppred/dataset_pyg.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
     <configuration name="model" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="BA_Code" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -153,13 +131,35 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="test" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="BA_Code" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/test.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
         <item itemvalue="Python.baselines" />
-        <item itemvalue="Python.cluster" />
         <item itemvalue="Python.model" />
+        <item itemvalue="Python.test" />
+        <item itemvalue="Python.cluster" />
         <item itemvalue="Python.dataLoader" />
-        <item itemvalue="Python.dataset_pyg" />
       </list>
     </recent_temporary>
   </component>
@@ -238,21 +238,73 @@
       <workItem from="1641906658095" duration="11501000" />
       <workItem from="1641993210573" duration="5670000" />
       <workItem from="1642008108347" duration="2632000" />
+      <workItem from="1642078801923" duration="3323000" />
+      <workItem from="1642241239555" duration="10122000" />
+      <workItem from="1642328393731" duration="7784000" />
+      <workItem from="1642415090987" duration="16239000" />
+      <workItem from="1642448596310" duration="4013000" />
+      <workItem from="1642497697537" duration="9799000" />
+      <workItem from="1642584585232" duration="3327000" />
+      <workItem from="1642668994939" duration="11341000" />
+      <workItem from="1642933673898" duration="12835000" />
+      <workItem from="1643015645156" duration="12907000" />
+      <workItem from="1643100330173" duration="4438000" />
+      <workItem from="1643207387949" duration="1915000" />
+      <workItem from="1643276314798" duration="12994000" />
+      <workItem from="1643305713700" duration="6165000" />
+      <workItem from="1643619243340" duration="2705000" />
+      <workItem from="1643718304518" duration="11982000" />
+      <workItem from="1643796093076" duration="7080000" />
+      <workItem from="1643803883036" duration="8734000" />
+      <workItem from="1643878957310" duration="3002000" />
+      <workItem from="1643969978532" duration="1427000" />
+      <workItem from="1643972343609" duration="559000" />
+      <workItem from="1643972920447" duration="6128000" />
+      <workItem from="1644058179991" duration="2294000" />
+      <workItem from="1644223685355" duration="5456000" />
+      <workItem from="1644309288390" duration="9884000" />
+      <workItem from="1644484432905" duration="17769000" />
+      <workItem from="1644586257501" duration="1659000" />
+      <workItem from="1645019942183" duration="16219000" />
+      <workItem from="1645041459045" duration="7975000" />
+      <workItem from="1645049678772" duration="196000" />
+      <workItem from="1645086648696" duration="4927000" />
+      <workItem from="1645179122899" duration="6319000" />
+      <workItem from="1645604090580" duration="3078000" />
+      <workItem from="1645629489328" duration="4857000" />
+      <workItem from="1646041260033" duration="246000" />
+      <workItem from="1646136432650" duration="12072000" />
+      <workItem from="1646173678496" duration="1187000" />
+      <workItem from="1646174881292" duration="36000" />
+      <workItem from="1646211121670" duration="6867000" />
+      <workItem from="1646255471874" duration="400000" />
     </task>
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/dataLoader.py</url>
+          <line>41</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/model_py$dataLoader.coverage" NAME="dataLoader Coverage Results" MODIFIED="1641382693245" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/model_py$model.coverage" NAME="model Coverage Results" MODIFIED="1641896498923" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/model_py$dataLoader.coverage" NAME="dataLoader Coverage Results" MODIFIED="1643021186012" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/model_py$model.coverage" NAME="model Coverage Results" MODIFIED="1646253535712" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/model_py$dataset_pyg.coverage" NAME="dataset_pyg Coverage Results" MODIFIED="1641303318082" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/OGB Code/ogb-master/ogb/linkproppred" />
     <SUITE FILE_PATH="coverage/model_py$BFS.coverage" NAME="BFS Coverage Results" MODIFIED="1639052072391" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/model_py$verification.coverage" NAME="verification Coverage Results" MODIFIED="1640085213482" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/model_py$gnn.coverage" NAME="gnn Coverage Results" MODIFIED="1641299024816" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/model_py$cluster.coverage" NAME="cluster Coverage Results" MODIFIED="1641995602370" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/model_py$baselines.coverage" NAME="baselines Coverage Results" MODIFIED="1642010731135" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/model_py$gnn.coverage" NAME="gnn Coverage Results" MODIFIED="1642672094830" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/model_py$cluster.coverage" NAME="cluster Coverage Results" MODIFIED="1644523406527" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/model_py$baselines.coverage" NAME="baselines Coverage Results" MODIFIED="1646255678573" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/model_py$test.coverage" NAME="test Coverage Results" MODIFIED="1645088379013" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/model_py$gnn_modified.coverage" NAME="gnn_modified Coverage Results" MODIFIED="1639496845822" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/model_py$LRP_modded.coverage" NAME="LRP_modded Coverage Results" MODIFIED="1636021725831" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>

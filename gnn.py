@@ -195,10 +195,8 @@ def main():
                                      transform=T.ToSparseTensor())
 
     data = dataset[0]
-    print(data)
     data.adj_t = data.adj_t.to_symmetric()
     data = data.to(device)
-    print(data.adj_t)
     split_edge = dataset.get_edge_split()
 
     # We randomly pick some training samples that we want to evaluate on:
@@ -209,6 +207,7 @@ def main():
         'target_node': split_edge['train']['target_node'][idx],
         'target_node_neg': split_edge['valid']['target_node_neg'],
     }
+
     if args.use_sage:
         model = SAGE(data.num_features, args.hidden_channels,
                      args.hidden_channels, args.num_layers,
@@ -226,7 +225,7 @@ def main():
         adj_t = deg_inv_sqrt.view(-1, 1) * adj_t * deg_inv_sqrt.view(1, -1)
         data.adj_t = adj_t
     print(data.adj_t)
-    print(split_edge["train"]["source_node"].size())
+    print(split_edge["train"])
     src = split_edge["train"]["source_node"][0]
     tar = split_edge["train"]["target_node"][1]
     print(src,tar)
