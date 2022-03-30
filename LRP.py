@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 
 # Function to generate a BA graph
-def scalefreegraph(seed=0, embed=False, growth=None):
+def scalefreegraph(seed=0, embed=True, growth=None):
     random = numpy.random.mtrand.RandomState(seed)
     N = 10
     A = numpy.zeros([N, N])
@@ -147,43 +147,48 @@ class GraphNet:
         H = H.matmul(self.V).clamp(min=0)
         return H.mean(dim=0)
 
+
     def lrp(self, A, gamma, l, inds):
+        print(self.U.shape,self.W1.shape,self.W2.shape,self.V.shape )
         if inds is not None:
             j, k = inds
             Mj = torch.FloatTensor(numpy.eye(len(A))[j][:, numpy.newaxis])
             Mk = torch.FloatTensor(numpy.eye(len(A))[k][:, numpy.newaxis])
-            print(Mk)
-            print(Mj)
+
 
         W1p = self.W1 + gamma * self.W1.clamp(min=0)  # god damn gamma rule w^- + yw^+
         W2p = self.W2 + gamma * self.W2.clamp(min=0)
         Vp = self.V + gamma * self.V.clamp(min=0)
-
+        print(len(A))
         X = torch.eye(len(A)) # diagonal matrix --> baisicly only selfloops
         X.requires_grad_(True)
 
         H = X.matmul(self.U).clamp(min=0)  # selfloops mal input weigths
 
+
         Z = A.transpose(1, 0).matmul(H.matmul(self.W1)) # Adjacency *  (H * W1)
         Zp = A.transpose(1, 0).matmul(H.matmul(W1p)) #
         H = (Zp * (Z / (Zp + 1e-6)).data).clamp(min=0)
+        print(H.shape)
 
         if inds is not None: H = H * Mj + (1 - Mj) * (H.data)
+        K = H
 
         Z = A.transpose(1, 0).matmul(H.matmul(self.W2))
         Zp = A.transpose(1, 0).matmul(H.matmul(W2p))
         H = (Zp * (Z / (Zp + 1e-6)).data).clamp(min=0)
 
         if inds is not None: H = H * Mk + (1 - Mk) * (H.data)
+        J=H
 
         Z = H.matmul(self.V)
         Zp = H.matmul(Vp)
         H = (Zp * (Z / (Zp + 1e-6)).data).clamp(min=0)
-
+        L=H
         Y = H.mean(dim=0)[l]
 
         Y.backward()
-
+        print(Y.sum(),(X.data * X.grad).sum(),K.sum(),J.sum(),L.sum())
         return X.data * X.grad
 
 # Plotting
@@ -209,7 +214,7 @@ test_size = 200
 
 num_false = 0
 for it in range(20001, 20001 + test_size):
-    g = scalefreegraph(seed=it, embed=False)
+    g = scalefreegraph(seed=it, embed=True)
     y = model.forward(g['laplacian'])
     prediction = int(y.data.argmax()) + 1
 
@@ -219,4 +224,20 @@ print('For {} test samples, the model predict the growth parameter with an accur
         test_size - num_false) / test_size))
 
 
-explain(g, y, 1)
+for target in [0, 1]:
+    plt.figure(figsize=(3 * len(sample_ids), 3))
+    for ids, seed in enumerate(sample_ids):
+        ax = plt.subplot(1, len(sample_ids), ids + 1)
+        sfg = scalefreegraph(seed=seed, embed=True)
+
+        # Explain
+        explain(sfg, model, target, gamma=0.1, ax=ax)
+        plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
+
+        plt.axis('off')
+        plt.xlim(-1.2, 1.2)
+        plt.ylim(-1.2, 1.2)
+
+    plt.suptitle('Evidence for growth={} with $\gamma={}$'.format(target + 1, gamma), size=14)
+    plt.show()
+    plt.close()

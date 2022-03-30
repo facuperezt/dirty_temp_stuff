@@ -76,7 +76,8 @@ class LinkPredData():
 def main():
     dataset = LinkPredData("data/", "mini_graph", use_small=True)
     data = dataset.load(explain=True)
-
+    print(data.adj_t[4568,2039])
+    print(data.adj_t[2039,4568])
 
 if __name__ == "__main__":
     main()

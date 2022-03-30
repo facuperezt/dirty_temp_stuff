@@ -208,7 +208,7 @@ def train(optimizer, train_set, rep, data, mlp, batchsize):
 
 
 @torch.no_grad()
-def test(evaluator, data_set, mlp, rep, data, batchsize,accuracy=False):
+def test(evaluator, data_set, mlp, rep, data, batchsize,accuracy=True):
     src, tar, tar_neg = data_set["source_node"], data_set["target_node"], data_set["target_node_neg"]
     permutation = torch.randperm(src.shape[0])
 
@@ -263,7 +263,7 @@ def runNN(epochs, load, save, batchsize=None, runs=1, plot=True,explain=False):
         nn.load_state_dict(torch.load("model/nn_baseline_None_50_001_Nadam"))
 
     nn.to(device), data.to(device)
-    optimizer = torch.optim.NAdam(list(nn.parameters()),lr=0.001)
+    optimizer = torch.optim.Adam(list(nn.parameters()),lr=0.001)
 
     evaluator = Evaluator(name='ogbl-citation2')
 
@@ -288,7 +288,7 @@ def runNN(epochs, load, save, batchsize=None, runs=1, plot=True,explain=False):
 
             if i == epochs - 1:
                 if save:
-                    torch.save(tmp_nn, "model/nn_baseline_None_50_001_Nadam")
+                    torch.save(tmp_nn, "model/nn_baseline_None_50_001_80")
                 if plot:
                     utils_func.plot_curves(epochs, [valid_mrr, test_mrr, loss],
                                            ["Valid MRR", "Test MRR", "Trainings Error"], 'Model Error',
@@ -307,7 +307,7 @@ def runNN(epochs, load, save, batchsize=None, runs=1, plot=True,explain=False):
 
 def main():
     # run all baseline and return results
-    runNN(epochs=50, load=False, save=True, batchsize=None, runs=1, plot=True)
+    runNN(epochs=1, load=True, save=False, batchsize=None, runs=1, plot=False)
     dataset = dataLoader.LinkPredData("data/", "mini_graph", use_small=True)
     data = dataset.load()
     split = dataset.get_edge_split()

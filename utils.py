@@ -1,6 +1,5 @@
 
 import importlib
-#igraph = importlib.import_module("python-igraph")
 import igraph
 import numpy
 import matplotlib.pyplot as plt

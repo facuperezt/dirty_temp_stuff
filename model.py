@@ -10,7 +10,7 @@ from torch_geometric.nn import GCNConv
 import dataLoader
 import utils
 import utils_func
-
+import matplotlib.pyplot as plt
 
 class GNN(torch.nn.Module):
     """
@@ -20,22 +20,19 @@ class GNN(torch.nn.Module):
     def __init__(self):
         # build GNN here
         super(GNN, self).__init__()
-        self.input = GCNConv(128, 256, bias=True)
-        self.hidden = GCNConv(256, 256, bias=True)
-        self.output = GCNConv(256, 256, bias=True)
+        self.input = GCNConv(128, 256, bias=False)
+        self.hidden = GCNConv(256, 256, bias=False)
+        self.output = GCNConv(256, 256, bias=False)
 
     def forward(self, x, edge_index):
         h = self.input(x, edge_index)
         X = relu(h)
-
         h = self.hidden(X, edge_index)
         X = relu(h)
-
         h = self.output(X, edge_index)
         return h
 
-
-    def lrp(self, x, edge_index, walk, r_src, r_tar, tar, epsilon=0.1, gamma=0.1):
+    def lrp(self, x, edge_index, walk, r_src, r_tar, tar, epsilon=0, gamma=0):
 
         def roh(layer):
             with torch.no_grad():
@@ -47,6 +44,7 @@ class GNN(torch.nn.Module):
         R = [None] * 3
 
         A[0] = x
+
         A[0] = relu(A[0]).data.clone().requires_grad_(True)
         A[1] = relu(self.input(A[0], edge_index)).data.clone().requires_grad_(True)
         A[2] = relu(self.hidden(A[1], edge_index)).data.clone().requires_grad_(True)
@@ -71,17 +69,15 @@ class GNN(torch.nn.Module):
         c = A[1].grad
         R[0] = A[1] * c
         R[0] = R[0][walk[0]]
+        print("gnn out:", R[0].sum())
 
-        """
         z = epsilon + roh(self.input).forward(A[0], edge_index)
         z = z[walk[1]]
         s = R[0] / (z + 1e-15)
         (z * s.data).sum().backward()
         c = A[0].grad
         test = A[0] * c
-        """
-        return R[0]
-
+        return (R[2].sum().detach(),R[1].sum().detach(),R[0].sum().detach())
 
 class NN(torch.nn.Module):
     """
@@ -91,9 +87,9 @@ class NN(torch.nn.Module):
     def __init__(self):
         # build MLP here
         super(NN, self).__init__()
-        self.input = torch.nn.Linear(256, 256, bias=True)
-        self.hidden = torch.nn.Linear(256, 256, bias=True)
-        self.output = torch.nn.Linear(256, 1, bias=True)
+        self.input = torch.nn.Linear(256, 256, bias=False)
+        self.hidden = torch.nn.Linear(256, 256, bias=False)
+        self.output = torch.nn.Linear(256, 1, bias=False)
 
     def forward(self, src, tar):
         x = src + tar
@@ -105,7 +101,7 @@ class NN(torch.nn.Module):
         return h
 
     # noinspection PyTypeChecker
-    def lrp(self, src, tar, r, epsilon=0.1, gamma=0.1):
+    def lrp(self, src, tar, r, epsilon=0, gamma=0):
         def roh(layer):
             with torch.no_grad():
                 cp = copy.deepcopy(layer)
@@ -121,6 +117,7 @@ class NN(torch.nn.Module):
         tar = tar.data.clone().requires_grad_(True)
 
         A[0] = relu(src + tar)
+
         A[0] = A[0].data.clone().requires_grad_(True)
         A[1] = relu(self.input(src + tar)).data.clone().requires_grad_(True)
         A[2] = relu(self.hidden(A[1])).data.clone().requires_grad_(True)
@@ -128,13 +125,10 @@ class NN(torch.nn.Module):
         z = epsilon + roh(self.output).forward(A[2])
         s = R[2] / (z + 1e-15)
         (z * s.data).sum().backward()
-
         c = A[2].grad
         R[1] = A[2] * c
-        print("R",R[1].sum())
 
         z = epsilon + roh(self.hidden).forward(A[1])
-        print(z.shape)
         s = R[1] / (z + 1e-15)
         (z * s.data).sum().backward()
         c = A[1].grad
@@ -149,12 +143,11 @@ class NN(torch.nn.Module):
         """
 
         z = epsilon + roh(self.input).forward(relu(src + tar))
-        print(z.shape)
         s = R[0] / (z + 1e-15)
         (z * s.data).sum().backward()
         src_grad = src.grad
         tar_grad = tar.grad
-        print(R[0].sum(),R[1].sum(),R[2].sum())
+
         return src * src_grad, tar * tar_grad
 
 
@@ -203,21 +196,27 @@ def train(batchsize, train_set, x, adj, optimizer, gnn, nn):
 def explains(test_set, gnn, mlp, adj, x,edge_index):
     src, tar = test_set["source_node"], test_set["target_node"]
     walks_all = utils.walks(adj)
-    print(adj)
     # forward passes
     mid = gnn(x, edge_index)  # features, edgeindex
     pos_pred = mlp(mid[src], mid[tar])
-    samples = [8, 107, 14, 453]
-
+    samples = [8, 14,107,453] #[406]
+    abs_R = 0
     for i in samples:
+        print("End score", pos_pred[i])
         walks = utils_func.find_walks(src[i], tar[i], walks_all)
         r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i])
-        #print(r_tar,r_src)
         p = []
+        m=0
         for walk in walks:
             p.append(gnn.lrp(x, edge_index, walk, r_src, r_tar, tar[i]))
-        utils_func.plot_explain(p, src[i], tar[i], walks, "pos", i)
+            m += utils_func.masking(gnn,mlp,x,src[i],tar[i],edge_index,adj,walk,gamma=0)
 
+        #print(m.sum())
+        #abs_R+=utils_func.plot_explain(p, src[i], tar[i], walks, "pos", i)
+        #utils_func.plt_sum(p,pos_pred[i])
+        break
+    #utils_func.plot_abs(abs_R,samples)
+    print(abs_R,abs_R/len(src))
 
 @torch.no_grad()
 def test(batchsize, data_set, x, adj, evaluator, gnn, nn,accuracy=False):
@@ -253,7 +252,7 @@ def test(batchsize, data_set, x, adj, evaluator, gnn, nn,accuracy=False):
     })['mrr_list'].mean().item()
 
 
-def main(batchsize=None, epochs=1, explain=False, save=False, load=True, runs=100, plot=True):
+def main(batchsize=None, epochs=1, explain=True, save=False, load=True, runs=1, plot=False):
     # ----------------------- Set up
     # globals
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -295,8 +294,8 @@ def main(batchsize=None, epochs=1, explain=False, save=False, load=True, runs=10
     # initilaization models
     gnn, nn = GNN(), NN()
     if load:
-        gnn.load_state_dict(torch.load("model/gnn_None_50_01"))
-        nn.load_state_dict(torch.load("model/nn_None_50_01"))
+        gnn.load_state_dict(torch.load("model/gnn_2100_50_001"))
+        nn.load_state_dict(torch.load("model/nn_2100_50_001"))
     gnn.to(device), nn.to(device), data.to(device)
     optimizer = torch.optim.Adam(list(gnn.parameters()) + list(nn.parameters()),lr=0.01) #redo 2100 0.005
     evaluator = Evaluator(name='ogbl-citation2')
@@ -319,9 +318,8 @@ def main(batchsize=None, epochs=1, explain=False, save=False, load=True, runs=10
             print(i)
             if save:
                 loss[i] = train(batchsize, train_set, data.x, data.adj_t, optimizer, gnn, nn).detach()
-
-            test_mrr[i] = test(batchsize, test_set, data.x, data.adj_t, evaluator, gnn, nn)
-            valid_mrr[i] = test(batchsize, valid_set, data.x, data.adj_t, evaluator, gnn, nn)
+            #test_mrr[i] = test(batchsize, test_set, data.x, data.adj_t, evaluator, gnn, nn)
+            #valid_mrr[i] = test(batchsize, valid_set, data.x, data.adj_t, evaluator, gnn, nn)
 
             if valid_mrr[i] > old and save:
                 old = valid_mrr[i]
@@ -330,15 +328,17 @@ def main(batchsize=None, epochs=1, explain=False, save=False, load=True, runs=10
 
             if i == epochs - 1:
                 if save:
-                    torch.save(tmp_gnn, "model/gnn_None_50_01")
-                    torch.save(tmp_nn, "model/nn_None_50_01")
+                    torch.save(tmp_gnn, "model/gnn_2100_50_001")
+                    torch.save(tmp_nn, "model/nn_2100_50_001")
                 if plot:
                     utils_func.plot_curves(epochs, [valid_mrr, test_mrr, loss],
                                            ["Valid MRR", "Test MRR", "Trainings Error"], 'Model Error',
                                            file_name="GNN" + "performance.pdf")
                 if explain:
-                    explains(valid_set, gnn, nn, exp_adj, explain_data.x,explain_data.edge_index)
 
+                    #utils_func.grid_e_g(valid_set, gnn, nn, exp_adj, explain_data.x,explain_data.edge_index)
+                    explains(valid_set, gnn, nn, exp_adj, explain_data.x,explain_data.edge_index)
+                    pass
         average[run, 0] = valid_mrr[-1]
         average[run, 1] = test_mrr[-1]
     print("Testset avarage Performance:", average[:, 1].mean(), "Testset variance:",

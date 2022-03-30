@@ -202,8 +202,36 @@ def create_Dataset(adj, data):
         s2.discard(i)
         save[i, 128:256] = data[list(s2)].sum(axis=0)
         save[i, 0:128] = data[list(s1)].sum(axis=0)
+    print("finished")
+    #pd.DataFrame(save).to_csv("data/baseline_NN", index=False)
 
-    pd.DataFrame(save).to_csv("data/baseline_NN", index=False)
+
+def samples(data,split):
+
+    src,tar = split["test"]["source_node"],split["test"]["target_node"]
+    print(src.shape[0])
+    index = np.arange(src.shape[0])
+    res =  np.vstack((index,np.zeros(src.shape[0])))
+    print(res.shape)
+    adj = data.adj_t.to_dense()
+
+    for i in range(src.shape[0]):
+        s1, s2 = set(), set()
+        s1.update(np.where(adj[src[i]])[0])
+        s1.update(np.where(adj[:,tar[i]])[0])
+        for node in s1:
+            s2.update(np.where(adj[node])[0])
+        s2.update(s1)
+        s2.discard(src[i])
+        s2.discard(tar[i])
+        res[1, i] = len(s2)
+    res = res[:, res[1, :].argsort()].T
+    res = pd.DataFrame(res,columns=["zero","one"])
+    res.to_csv("data/samples", index=False)
+    res = res.drop(np.where(res["one"] <= 2)[0]).reset_index()
+    res = res.drop(np.where(res["one"] > 200)[0])
+
+    res.to_csv("data/samples_smoll", index=False)
 
 def main():
     """
@@ -222,14 +250,12 @@ def main():
     reindexing()
     """
     dataset = dataLoader.LinkPredData("data/", "mini_graph", use_small=True)
-    data = dataset.load(transform=True, explain=False)
+    data = dataset.load(transform=True, explain=True)
     #graph_statistics(data)
     #graph_split(data)
-    test_adj = np.array([[1,1,1,0,0,1],[1,1,1,1,1,0],[1,1,1,0,1,0],[0,1,0,1,1,0],[0,1,1,1,1,1],[1,0,0,0,1,1]])
-    print(test_adj)
-    test_data = np.random.rand(6,128)
     #print(test_data)
-    create_Dataset(data.adj_t.to_symmetric().to_dense(),data.x)
+    #create_Dataset(data.adj_t.to_symmetric().to_dense(),data.x)
+    samples(data,dataset.get_edge_split())
 
 if __name__ == "__main__":
     main()
