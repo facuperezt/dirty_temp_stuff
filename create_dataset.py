@@ -1,3 +1,4 @@
+import PIL.TiffImagePlugin
 import pandas as pd
 import numpy as np
 import torch
@@ -7,6 +8,9 @@ from matplotlib import pyplot as plt
 from collections import Counter
 import copy
 from numpy.random import default_rng
+import utils
+import utils_func
+import model
 
 
 def random_walk(data, start):
@@ -188,7 +192,7 @@ def graph_statistics(data):
     print("Nodes: ", data.num_nodes, "Edges: ", data.num_edges, "ration: ", data.num_edges / data.num_nodes)
 
 
-def create_Dataset(adj, data):
+def create_data_baseline(adj, data):
     adj -= np.identity(data.shape[0], dtype=float)
     save = np.zeros([data.shape[0], 256])
 
@@ -233,6 +237,98 @@ def samples(data,split):
 
     res.to_csv("data/samples_smoll", index=False)
 
+
+def validation_lrp(data,split,adj,model_file,activation=True,pruning=False):
+    #Lets find and remove 5 nodes each for pruning and adding based on samples in validation
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    val_src, val_tar = split["valid"]["source_node"], split["valid"]["target_node"]
+    train_src, train_tar = split["train"]["source_node"], split["train"]["target_node"]
+    print(data)
+    gnn = model.GNN()
+    nn = model.NN()
+
+    gnn.load_state_dict(torch.load("model/gnn_"+model_file))
+    nn.load_state_dict(torch.load("model/nn_"+model_file))
+    gnn.to(device), nn.to(device), data.to(device)
+
+    print(data)
+    walks_all = utils.walks(adj)
+    samples = [8, 14, 107, 453]  # [406]
+    df = pd.DataFrame()
+
+    #graph_rep = gnn(data.x, data.adj_t)
+    #model_out = nn(graph_rep[val_src], graph_rep[val_tar])
+
+    if pruning:
+        for i in samples:
+            walks = utils_func.find_walks(val_src[i], val_tar[i], walks_all)
+
+            graph_rep = gnn(data.x, data.adj_t)
+            model_out = nn(graph_rep[val_src], graph_rep[val_tar])
+
+            r_src, r_tar = nn.lrp(graph_rep[val_src[i]], graph_rep[val_tar[i]], model_out[i])
+            r_g = r_src.detach().sum()+r_tar.detach().sum()
+            l = []
+            nodes = set([node for walk in walks for node in walk])
+            print(nodes)
+            for walk in walks:
+                r = gnn.lrp(data.x, data.adj_t, walk, r_src, r_tar, val_tar[i])
+                l.append(tuple((np.abs(r_g-r[2].detach().sum()),walk)))
+            l.sort(key=lambda x: x[0])
+            name = "pruning"+str(i)
+            l = [x[1] for x in l[-6:-1]]
+            df[name]=l
+
+    if activation:
+        for i in samples:
+            walks = utils_func.find_walks(val_src[i], val_tar[i], walks_all)
+            nodes = set([node for walk in walks for node in walk])
+            nodes.difference_update([val_src[i],val_tar[i]])
+            ref_adj = data.adj_t.to_dense()
+            for node in nodes :
+                ref_adj[val_src[i], node],ref_adj[node, val_src[i]] = 0,0
+                ref_adj[val_tar[i], node],ref_adj[node, val_tar[i]] = 0,0
+            ref_adj = torch_sparse.SparseTensor.from_dense(ref_adj)
+            graph_rep = gnn(data.x, ref_adj)
+            model_out = nn(graph_rep[val_src], graph_rep[val_tar])
+            r_src, r_tar = nn.lrp(graph_rep[val_src[i]], graph_rep[val_tar[i]], model_out[i])
+            ref = r_src.detach().sum()+r_tar.detach().sum()
+
+            l = []
+            res=[]
+            print("test")
+            while nodes:
+                for node in nodes:
+                    tmp = copy.copy(ref_adj)
+                    tmp = tmp.to_dense()
+                    tmp[val_src[i], node], tmp[node, val_src[i]] = data.adj_t.to_dense()[val_src[i], node], data.adj_t.to_dense()[node,val_src[i]]
+                    tmp[val_tar[i], node], tmp[node, val_tar[i]] = data.adj_t.to_dense()[val_tar[i], node], data.adj_t.to_dense()[node,val_tar[i]]
+
+                    graph_rep = gnn(data.x, ref_adj)
+                    r_src, r_tar = nn.lrp(graph_rep[val_src[i]], graph_rep[val_tar[i]], model_out[i])
+                    l.append(tuple((ref+r_tar.detach().sum()+r_src.detach().sum(),node)))
+                print(l)
+                l.sort(key=lambda x: x[0])
+                l = [x[1] for x in l]
+
+                nodes.discard(l[0])
+                print(nodes)
+                res.append(l[0])
+
+            name = "pruning"+str(i)
+            df[name]=res
+            print(df)
+            break
+        pass
+
+    if activation and pruning:
+        df.to_csv("data/validation_lrp",index=False)
+    elif activation:
+        df = pd.read_csv("data/validation_lrp").to_numpy()
+        print(df)
+    else :
+        df.to_csv("data/validation_lrp",index=False)
+        print(df)
 def main():
     """
     Setup to compute random walk and generate Dataset from it
@@ -250,12 +346,14 @@ def main():
     reindexing()
     """
     dataset = dataLoader.LinkPredData("data/", "mini_graph", use_small=True)
+    data = dataset.load(transform=False, explain=True)
+    edgeindex = data.edge_index
     data = dataset.load(transform=True, explain=True)
     #graph_statistics(data)
     #graph_split(data)
     #print(test_data)
     #create_Dataset(data.adj_t.to_symmetric().to_dense(),data.x)
-    samples(data,dataset.get_edge_split())
-
+    #samples(data,dataset.get_edge_split())
+    validation_lrp(data,dataset.get_edge_split(),utils_func.adjMatrix(edgeindex,data.num_nodes),"2100_50_001")
 if __name__ == "__main__":
     main()

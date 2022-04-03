@@ -1,3 +1,6 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
 
 def dreiD():
     df1 = pd.read_csv("data/tmp.csv")
@@ -26,27 +29,25 @@ def dreiD():
     plt.show()
 
 def plt_sum(walks,gnn,r_src,r_tar,tar,x, edge_index):
-    arr = np.array((1,4))
-    arr[0] = (r_src+r_tar).sum()
+    arr = np.zeros((4,1))
+    arr[0] = (r_src.detach()+r_tar.detach()).sum()
 
     walks = np.asarray(walks)
-    s = set(walks[:,0])
-    print(tmp)
+    l= set(walks[:,2])
+    for node in l :
+        res = gnn.lrp(x, edge_index, [node,node,node], r_src, r_tar, tar)
+        arr[1] += res[0].detach().numpy()
+    l = set([tuple((walks[x,1],walks[x,2])) for x in range(walks.shape[0])])
+    for node in l:
+        res = gnn.lrp(x, edge_index, [node[0], node[0], node[1]], r_src, r_tar, tar)
+        arr[2] += res[1].detach().numpy()
+    for walk in walks:
+        res = gnn.lrp(x, edge_index, walk, r_src, r_tar, tar)
+        arr[3] += res[2].detach().numpy()
 
-    #tmp = [for x in s ]
-
-    res = gnn.lrp(x, edge_index, [tmp[0],tmp[0],tmp[0]], r_src, r_tar, tar)
-    arr[1] =res[0]
-    res = gnn.lrp(x, edge_index, [tmp[1], tmp[1], tmp[1]], r_src, r_tar, tar)
-    arr+= res[0]
-
-
-    arr = np.asarray(tuple).sum(axis=0)
-    arr= arr.tolist()
-    arr.insert(0,r_0.detach().numpy()[0])
     width = 0.35
     fig, ax = plt.subplots()
-    ax.bar([0,1,2,3], arr, width)
+    ax.bar([0,1,2,3], arr.flatten().T, 0.35)
     ax.set_ylabel('Absolut Relevance')
     ax.set_title(r'Absolut Relevance values, $\epsilon =0.0$,$\gamma =0.0$')
     ax.set_xticks([0,1,2,3], labels=["R_0","R_J","R_JK","R_JKL"])

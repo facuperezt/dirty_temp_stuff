@@ -8,6 +8,7 @@ from torch.nn.functional import relu
 from torch_geometric.nn import GCNConv
 
 import dataLoader
+import plots
 import utils
 import utils_func
 import matplotlib.pyplot as plt
@@ -207,10 +208,11 @@ def explains(test_set, gnn, mlp, adj, x,edge_index):
         r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i])
         p = []
         m=0
+        plots.plt_sum(walks,gnn,r_src,r_tar,tar[i],x, edge_index)
         for walk in walks:
-            p.append(gnn.lrp(x, edge_index, walk, r_src, r_tar, tar[i]))
-            m += utils_func.masking(gnn,mlp,x,src[i],tar[i],edge_index,adj,walk,gamma=0)
-
+#            p.append(gnn.lrp(x, edge_index, walk, r_src, r_tar, tar[i]))
+#            m += utils_func.masking(gnn,mlp,x,src[i],tar[i],edge_index,adj,walk,gamma=0)
+            pass
         #print(m.sum())
         #abs_R+=utils_func.plot_explain(p, src[i], tar[i], walks, "pos", i)
         #utils_func.plt_sum(p,pos_pred[i])

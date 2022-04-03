@@ -46,8 +46,8 @@ def scalefreegraph(seed=0, embed=True, growth=None):
     }
 
 
-####################
 
+####################
 # Function to visualise a graph
 def vis_graph(g, ax):
     # Arange graph layout

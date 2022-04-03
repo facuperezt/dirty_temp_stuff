@@ -47,8 +47,8 @@ for x in index:
 pd.DataFrame(edge_small).to_csv("data/Data_small_2")
 """
 # source,target
-edges = pd.read_csv("data/Data_small_2", index_col='index').to_numpy()
-index = pd.read_csv("data/index_2",index_col='index').to_numpy()
+edges = pd.read_csv("../data/Data_small_2", index_col='index').to_numpy()
+index = pd.read_csv("../data/index_2", index_col='index').to_numpy()
 
 index_helper = np.vstack((index.flatten(),np.arange(0,index.shape[0],1)))
 for i in index_helper.T:
@@ -109,9 +109,9 @@ neg_test = np.array(neg_test)
 valid_dict = {"source_node": np.array(valid)[:, 0], "target_node": np.array(valid)[:, 1], "target_node_neg": neg_valid}
 test_dict = {"source_node": np.array(test)[:, 0], "target_node": np.array(test)[:, 1], "target_node_neg": neg_test}
 train_dict = {"source_node": train[:, 0], "target_node": train[:, 1]}
-torch.save(valid_dict, "data/valid_small.pt")
-torch.save(test_dict, "data/test_small.pt")
-torch.save(train_dict, "data/train_small.pt")
+torch.save(valid_dict, "../data/valid_small.pt")
+torch.save(test_dict, "../data/test_small.pt")
+torch.save(train_dict, "../data/train_small.pt")
 
 
 
