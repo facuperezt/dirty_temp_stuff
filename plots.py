@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
+import igraph
+import utils
 
 def dreiD():
     df1 = pd.read_csv("data/tmp.csv")
@@ -251,57 +252,80 @@ def plot_explain_nodes(walks,src,tar,oneHopSrc, twoHopSrc, oneHopTar, twoHopTar,
     fig.show()
 
 
-def plot_explain(r, src, tar, walks, pos, node):
+def plot_explain(r, src, tar, walks, pos, node,gamma,data):
     graph = igraph.Graph()
     nodes = list(set(np.asarray(walks).flatten()))
     n = 0
-    """
+    print(nodes)
+
     for node in nodes:
         graph.add_vertices(str(node))
-
+    print(graph)
     x, y = [], []
     for walk in walks:
-        graph.add_edges([(str(walk[0]), str(walk[1])), (str(walk[1]), str(walk[2]))])
+        print(walk)
+        graph.add_edges([(str(walk[0]), str(walk[1])), (str(walk[1]), str(walk[2])),(str(walk[2]), str(walk[3]))])
         x.append(nodes.index(walk[0])), y.append(nodes.index(walk[1]))
         x.append(nodes.index(walk[1])), y.append(nodes.index(walk[2]))
+        x.append(nodes.index(walk[2])), y.append(nodes.index(walk[1]))
+
 
     place = np.array(list(graph.layout_kamada_kawai()))
-
     # edges plotting
 
     fig, axs = plt.subplots()
-    """
     val_abs = 0
+    max_abs = np.abs(max(map((lambda x:x.sum()),r)).detach().numpy())
+
     for walk in walks:
         R = r[n].detach()
 
         R = R.sum()
 
-        """
-        a = [place[nodes.index(walk[0]), 0], place[nodes.index(walk[1]), 0], place[nodes.index(walk[2]), 0]]
-        b = [place[nodes.index(walk[0]), 1], place[nodes.index(walk[1]), 1], place[nodes.index(walk[2]), 1]]
+        a = [place[nodes.index(walk[0]), 0], place[nodes.index(walk[1]), 0], place[nodes.index(walk[2]), 0], place[nodes.index(walk[3]), 0]]
+        b = [place[nodes.index(walk[0]), 1], place[nodes.index(walk[1]), 1], place[nodes.index(walk[2]), 1], place[nodes.index(walk[3]), 1]]
         tx, ty = utils.shrink(a, b)
 
-        #print(walk, "with relevance of ", R)
-        axs.plot([place[x, 0], place[y, 0]], [place[x, 1], place[y, 1]], color='gray', lw=0.2, ls='dotted', alpha=0.3)
+        axs.arrow(a[0], b[0], a[1]-a[0],b[1]-b[0], color='grey', lw=0.5, alpha=0.3,length_includes_head=True,
+                  head_width=0.05)
+        axs.arrow(a[1], b[1], a[2] - a[1], b[2] - b[1], color='grey', lw=0.5, alpha=0.3, length_includes_head=True,
+                  head_width=0.05)
+        axs.arrow(a[2], b[2], a[3] - a[2], b[3] - b[2], color='grey', lw=0.5, alpha=0.3, length_includes_head=True,
+                  head_width=0.05)
 
         if R > 0.0:
-            alpha = np.clip(5 * R.data.numpy(), 0, 1)
+            alpha = np.clip((2/max_abs) * R.data.numpy(), 0, 1)
             axs.plot(tx, ty, alpha=alpha, color='red', lw=1.2)
-            # print("     and alpha of", alpha)
+
         if R < -0.0:
-            alpha = np.clip(-5 * R.data.numpy(), 0, 1)
+            alpha = np.clip(-(2/max_abs) * R.data.numpy(), 0, 1)
             axs.plot(tx, ty, alpha=alpha, color='blue', lw=1.2)
-            # print("     and alpha of", alpha)
-        """
+
         n += 1
 
         val_abs += np.abs(R)
+
     # nodes plotting
-    """
-    axs.plot(place[:, 0], place[:, 1], 'o', color='black', ms=3)
-    axs.plot(place[nodes.index(src), 0], place[nodes.index(src), 1], 'o', color='green', ms=6, label="source node")
-    axs.plot(place[nodes.index(tar), 0], place[nodes.index(tar), 1], 'o', color='yellow', ms=6, label="target node")
+    alpha_src = np.sqrt(((data[src].numpy() - data[nodes].numpy())**2).sum(axis=1))
+    alpha_src *= 1/max(alpha_src)
+
+    alpha_tar = np.sqrt(((data[tar].numpy() - data[nodes].numpy())**2).sum(axis=1))
+    alpha_tar *= 1 / max(alpha_tar)
+    print(alpha_tar)
+    print(alpha_src)
+    for i in range(len(nodes)):
+        """
+        axs.plot(place[i, 0], place[i, 1], 'o', color='green', ms=9,
+                 fillstyle='bottom',alpha=alpha_src[i])
+        axs.plot(place[i, 0], place[i, 1], 'o', color='yellow', ms=9,
+                 fillstyle='top',alpha=alpha_tar[i])
+        """
+        axs.plot(place[i, 0], place[i, 1], 'o', color='black', ms=3)
+
+    axs.plot(place[nodes.index(src), 0], place[nodes.index(src), 1], 'o',
+             color='green', ms=5, label="source node")
+    axs.plot(place[nodes.index(tar), 0], place[nodes.index(tar), 1], 'o',
+             color='yellow', ms=5, label="target node")
 
     # legend shenenigans & # plot specifics
     axs.plot([], [], color='blue', label="negative relevance")
@@ -310,9 +334,24 @@ def plot_explain(r, src, tar, walks, pos, node):
     axs.legend(loc=2, bbox_to_anchor=(-0.15, 1.14))
     axs.axis("off")
 
-    node = str(node)
-    name = "plots/LRP_plot_" + pos + "_example_" + node + ".svg"
+    gamma = str(gamma)
+    gamma = gamma.replace('.','')
+    node = str(src)
+    name = "plots/LRP_plot_" + pos + "_example_" + node +gamma+".svg"
     fig.savefig(name)
     fig.show()
-    """
     return val_abs
+
+def validation(relevances: list,node):
+    relevances = np.asarray(relevances)
+    fig, axs = plt.subplots()
+    axs.fill_between(np.arange(0,25,1),relevances[:,1])
+    axs.set_xticks([0, 5, 10, 15, 20, 25], labels=[0, 5, 10, 15, 20, 25])
+
+
+#    axs.fill_between(np.arange(0,4,1),relevances[:,1])
+#    axs.set_xticks([0, 1, 2, 3 ], labels=[0, 1, 2, 3])
+
+
+    plt.savefig("plots/validation_pru"+str(node))
+    plt.show()

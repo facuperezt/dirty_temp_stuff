@@ -159,7 +159,7 @@ class GraphNet:
         W1p = self.W1 + gamma * self.W1.clamp(min=0)  # god damn gamma rule w^- + yw^+
         W2p = self.W2 + gamma * self.W2.clamp(min=0)
         Vp = self.V + gamma * self.V.clamp(min=0)
-        print(len(A))
+        print("Len adj ",len(A))
         X = torch.eye(len(A)) # diagonal matrix --> baisicly only selfloops
         X.requires_grad_(True)
 
@@ -169,7 +169,7 @@ class GraphNet:
         Z = A.transpose(1, 0).matmul(H.matmul(self.W1)) # Adjacency *  (H * W1)
         Zp = A.transpose(1, 0).matmul(H.matmul(W1p)) #
         H = (Zp * (Z / (Zp + 1e-6)).data).clamp(min=0)
-        print(H.shape)
+
 
         if inds is not None: H = H * Mj + (1 - Mj) * (H.data)
         K = H
@@ -188,7 +188,7 @@ class GraphNet:
         Y = H.mean(dim=0)[l]
 
         Y.backward()
-        print(Y.sum(),(X.data * X.grad).sum(),K.sum(),J.sum(),L.sum())
+        print("Shape res",(X.data * X.grad).shape)
         return X.data * X.grad
 
 # Plotting

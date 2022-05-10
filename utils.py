@@ -10,7 +10,7 @@ def shrink(rx,ry):
     ry = numpy.array(ry)
 
 
-    if rx[0]==rx[1]==rx[2] and ry[0]==ry[1]==ry[2]: # Added numpy.all()
+    if rx[0]==rx[1]==rx[2]==rx[3] and ry[0]==ry[1]==ry[2]==ry[3]: # Added numpy.all()
         rx = rx[0]+0.1*numpy.cos(numpy.linspace(0,2*numpy.pi,50))
         ry = ry[0]+0.1*numpy.sin(numpy.linspace(0,2*numpy.pi,50))
     else:
@@ -38,10 +38,12 @@ def shrink(rx,ry):
 
 def walks(A):
     w = []
+
     for v1 in numpy.arange(len(A)):
         for v2 in numpy.where(A[v1])[0]:
             for v3 in numpy.where(A[v2])[0]:
                 w += [(v1,v2,v3)]
+
     return w
 
 def layout(A,seed):

@@ -7,11 +7,13 @@ from ogb.linkproppred import Evaluator
 from torch.nn.functional import relu
 from torch_geometric.nn import GCNConv
 
+import create_dataset
 import dataLoader
 import plots
 import utils
 import utils_func
 import matplotlib.pyplot as plt
+import pandas as pd
 
 class GNN(torch.nn.Module):
     """
@@ -38,15 +40,16 @@ class GNN(torch.nn.Module):
         def roh(layer):
             with torch.no_grad():
                 cp = copy.deepcopy(layer)
-                cp.lin.weight[:, :] = cp.lin.weight + gamma * torch.clamp(cp.lin.weight, min=0)
+                cp.lin.weight[:, :] = cp.lin.weight + (gamma * torch.clamp(cp.lin.weight, min=0))
                 return cp
 
         A = [None] * 3
-        R = [None] * 3
+        R = [None] * 4
 
-        A[0] = x
+        x.requires_grad_(True)
+        #A[0] = x
 
-        A[0] = relu(A[0]).data.clone().requires_grad_(True)
+        A[0] = x.data.clone().requires_grad_(True)
         A[1] = relu(self.input(A[0], edge_index)).data.clone().requires_grad_(True)
         A[2] = relu(self.hidden(A[1], edge_index)).data.clone().requires_grad_(True)
 
@@ -54,32 +57,47 @@ class GNN(torch.nn.Module):
             R[-1] = r_tar
         else:
             R[-1] = r_src
+        #print(walk)
 
         z = epsilon + roh(self.output).forward(A[2], edge_index)
+        z = z[walk[3]]
+        s = R[3] / (z + 1e-15)
+        (z * s.data).sum().backward()
+        c = A[2].grad
+        R[2] = A[2].data * c
+        R[2] = R[2][walk[2]]
+
+        z = epsilon + roh(self.hidden).forward(A[1], edge_index)
         z = z[walk[2]]
         s = R[2] / (z + 1e-15)
         (z * s.data).sum().backward()
-        c = A[2].grad
-        R[1] = A[2] * c
+        c = A[1].grad
+        R[1] = A[1].data * c
         R[1] = R[1][walk[1]]
 
-        z = epsilon + roh(self.hidden).forward(A[1], edge_index)
-        z = z[walk[1]]
-        s = R[1] / (z + 1e-15)
-        (z * s.data).sum().backward()
-        c = A[1].grad
-        R[0] = A[1] * c
-        R[0] = R[0][walk[0]]
-        print("gnn out:", R[0].sum())
-
+        """
         z = epsilon + roh(self.input).forward(A[0], edge_index)
-        z = z[walk[1]]
+        z = z[walk[0]]
         s = R[0] / (z + 1e-15)
         (z * s.data).sum().backward()
         c = A[0].grad
-        test = A[0] * c
-        return (R[2].sum().detach(),R[1].sum().detach(),R[0].sum().detach())
+        #test = A[0].data * c
+        """
 
+        z = epsilon + roh(self.input).forward(A[0], edge_index)
+        z = z[walk[1]]
+        s = R[1] / (z + 1e-15)
+        (z * s.data).sum().backward()
+        c = A[0].grad
+        R[0] = A[0].data * c
+        #print((np.where(R[0])))
+        R[0] = R[0][walk[0]]
+
+        #print(walk)
+        #print("     GNN out",R[0].sum(),c.sum())
+
+        #return (R[2].sum().detach(),R[1].sum().detach(),R[0].sum().detach())
+        return R[0]
 class NN(torch.nn.Module):
     """
     3-Layer MLP with 256 input and hidden neurons and 1 output neuron
@@ -111,14 +129,11 @@ class NN(torch.nn.Module):
 
         A = [None] * 3
         R = [None] * 3
-
         R[-1] = r
-
         src = src.data.clone().requires_grad_(True)
         tar = tar.data.clone().requires_grad_(True)
 
-        A[0] = relu(src + tar)
-
+        A[0] = src + tar
         A[0] = A[0].data.clone().requires_grad_(True)
         A[1] = relu(self.input(src + tar)).data.clone().requires_grad_(True)
         A[2] = relu(self.hidden(A[1])).data.clone().requires_grad_(True)
@@ -142,13 +157,11 @@ class NN(torch.nn.Module):
         c = A[0].grad
         test = A[0] * c
         """
-
-        z = epsilon + roh(self.input).forward(relu(src + tar))
+        z = epsilon + roh(self.input).forward(src + tar)
         s = R[0] / (z + 1e-15)
         (z * s.data).sum().backward()
         src_grad = src.grad
         tar_grad = tar.grad
-
         return src * src_grad, tar * tar_grad
 
 
@@ -196,29 +209,39 @@ def train(batchsize, train_set, x, adj, optimizer, gnn, nn):
 
 def explains(test_set, gnn, mlp, adj, x,edge_index):
     src, tar = test_set["source_node"], test_set["target_node"]
-    walks_all = utils.walks(adj)
+    #walks_all = utils.walks(adj)
     # forward passes
     mid = gnn(x, edge_index)  # features, edgeindex
     pos_pred = mlp(mid[src], mid[tar])
-    samples = [8, 14,107,453] #[406]
+
+    samples = [53,47,5,188,105]
+    samples = [53]
     abs_R = 0
+    y = copy.deepcopy(x)
+    z = copy.deepcopy(x)
+    gammas = [0.2,0.5]#,1,20]
+    gammas = [0.0]
     for i in samples:
-        print("End score", pos_pred[i])
-        walks = utils_func.find_walks(src[i], tar[i], walks_all)
-        r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i])
-        p = []
-        m=0
-        plots.plt_sum(walks,gnn,r_src,r_tar,tar[i],x, edge_index)
-        for walk in walks:
-#            p.append(gnn.lrp(x, edge_index, walk, r_src, r_tar, tar[i]))
-#            m += utils_func.masking(gnn,mlp,x,src[i],tar[i],edge_index,adj,walk,gamma=0)
-            pass
-        #print(m.sum())
-        #abs_R+=utils_func.plot_explain(p, src[i], tar[i], walks, "pos", i)
-        #utils_func.plt_sum(p,pos_pred[i])
+        e = 0.2
+        for gamma in gammas:
+
+            walks = utils_func.walks(adj,src[i], tar[i])
+            r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i],gamma=gamma,epsilon=e)
+            p = []
+            m=0
+            #plots.plt_sum(walks,gnn,r_src,r_tar,tar[i],x, edge_index)
+            for walk in walks:
+                p.append(gnn.lrp(y, edge_index, walk, r_src, r_tar, tar[i],gamma=gamma,epsilon=e))
+                #m += utils_func.masking(gnn,mlp,z,src[i],tar[i],edge_index,adj,walk,gamma=gamma)
+            a, pr = utils_func.validation(walks,p,src[i],pruning=True,activation=False,plot=True)
+            print(a)
+            print(pr)
+            break
         break
-    #utils_func.plot_abs(abs_R,samples)
-    print(abs_R,abs_R/len(src))
+            #abs_R+= plots.plot_explain(p, src[i], tar[i], walks, "pos", i,gamma,x)
+            #utils_func.plt_sum(p,pos_pred[i])
+        #utils_func.plot_abs(abs_R,samples)
+    #print(abs_R,abs_R/len(src))
 
 @torch.no_grad()
 def test(batchsize, data_set, x, adj, evaluator, gnn, nn,accuracy=False):
@@ -337,7 +360,7 @@ def main(batchsize=None, epochs=1, explain=True, save=False, load=True, runs=1, 
                                            ["Valid MRR", "Test MRR", "Trainings Error"], 'Model Error',
                                            file_name="GNN" + "performance.pdf")
                 if explain:
-
+                    #validation(valid_set, gnn, nn, exp_adj, explain_data.x,explain_data.edge_index)
                     #utils_func.grid_e_g(valid_set, gnn, nn, exp_adj, explain_data.x,explain_data.edge_index)
                     explains(valid_set, gnn, nn, exp_adj, explain_data.x,explain_data.edge_index)
                     pass
