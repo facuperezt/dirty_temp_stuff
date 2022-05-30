@@ -4,7 +4,7 @@ import torch
 from torch_geometric import data, transforms
 
 
-class LinkPredData():
+class LinkPredData:
     def __init__(self, root_dir, name, transform=transforms.ToSparseTensor(), use_year=False, use_small=True, ):
 
         self.root_dir = root_dir
@@ -71,13 +71,3 @@ class LinkPredData():
     def get_representation(self, baseline):
         rep = torch.from_numpy(np.asarray(pd.read_csv(self.root_dir + baseline)))
         return rep
-
-
-def main():
-    dataset = LinkPredData("data/", "mini_graph", use_small=True)
-    data = dataset.load(explain=True)
-    print(data.adj_t[4568,2039])
-    print(data.adj_t[2039,4568])
-
-if __name__ == "__main__":
-    main()

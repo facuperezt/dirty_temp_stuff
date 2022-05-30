@@ -12,6 +12,7 @@ import dataLoader
 import plots
 import utils
 import utils_func
+import validation
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -97,7 +98,11 @@ class GNN(torch.nn.Module):
         #print("     GNN out",R[0].sum(),c.sum())
 
         #return (R[2].sum().detach(),R[1].sum().detach(),R[0].sum().detach())
-        return R[0]
+
+        #print("Walk", (x.grad * x.data).sum(), x.grad.sum())
+        #print(np.where((x.grad * x.data)))
+        #print(R[0].sum())
+        return R[0].detach().numpy()
 class NN(torch.nn.Module):
     """
     3-Layer MLP with 256 input and hidden neurons and 1 output neuron
@@ -207,7 +212,7 @@ def train(batchsize, train_set, x, adj, optimizer, gnn, nn):
     return sum(total_loss) / num_sample
 
 
-def explains(test_set, gnn, mlp, adj, x,edge_index):
+def explains(test_set, gnn, mlp, adj, x,edge_index,do_validation=False):
     src, tar = test_set["source_node"], test_set["target_node"]
     #walks_all = utils.walks(adj)
     # forward passes
@@ -215,17 +220,26 @@ def explains(test_set, gnn, mlp, adj, x,edge_index):
     pos_pred = mlp(mid[src], mid[tar])
 
     samples = [53,47,5,188,105]
-    samples = [53]
+    samples = [483,474,472,466,436,435,429,408,402,398,
+               380,347,336,320,307,305,270,255,227,216,
+               53,47,5,188,105,12,34,56,66,70]
     abs_R = 0
     y = copy.deepcopy(x)
     z = copy.deepcopy(x)
     gammas = [0.2,0.5]#,1,20]
     gammas = [0.0]
+    val = []
     for i in samples:
-        e = 0.2
+        e = 0.0
         for gamma in gammas:
 
             walks = utils_func.walks(adj,src[i], tar[i])
+            """
+            nodes = list(set(np.asarray(walks).flatten()))
+            if 25 <= len(nodes) <= 60:
+                print(i, len(walks))
+                val.append(i)
+            """
             r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i],gamma=gamma,epsilon=e)
             p = []
             m=0
@@ -233,16 +247,18 @@ def explains(test_set, gnn, mlp, adj, x,edge_index):
             for walk in walks:
                 p.append(gnn.lrp(y, edge_index, walk, r_src, r_tar, tar[i],gamma=gamma,epsilon=e))
                 #m += utils_func.masking(gnn,mlp,z,src[i],tar[i],edge_index,adj,walk,gamma=gamma)
-            a, pr = utils_func.validation(walks,p,src[i],pruning=True,activation=False,plot=True)
-            print(a)
-            print(pr)
-            break
-        break
-            #abs_R+= plots.plot_explain(p, src[i], tar[i], walks, "pos", i,gamma,x)
+
+            if do_validation:
+                val.append(validation.validation_results(gnn, mlp, x, edge_index, walks, p, src[i], tar[i],pruning=True, activaton=False))
+            #utils_func.validation(walks,p,src[i],pruning=True,activation=False,plot=True)
+            #walks.append([src[i].numpy(), src[i].numpy(), src[i].numpy(), tar[i].numpy()])
+
+            #a, pr = utils_func.validation(walks,p,src[i],pruning=True,activation=False,plot=True)
+            #abs_R+= plots.plot_explain(p, src[i], tar[i], walks, "pos",gamma,x)
+    validation.validation_avg_plot(val, 57)
             #utils_func.plt_sum(p,pos_pred[i])
         #utils_func.plot_abs(abs_R,samples)
     #print(abs_R,abs_R/len(src))
-
 @torch.no_grad()
 def test(batchsize, data_set, x, adj, evaluator, gnn, nn,accuracy=False):
     tmp = data_set["source_node"].shape[0]
@@ -330,8 +346,9 @@ def main(batchsize=None, epochs=1, explain=True, save=False, load=True, runs=1, 
         batchsize = dataset.num_edges
     if explain:
         # to plot proper plot the the LRP-method we need all walks:
-        explain_data = dataset.load(transform=False, explain=True)
+        explain_data = dataset.load(transform=False, explain=False)
         exp_adj = utils_func.adjMatrix(explain_data.edge_index,explain_data.num_nodes)  # Transpose of adj Matrix for find walks
+        #exp_adj = utils_func.adjMatrix(data.edge_index,data.num_nodes)
         # walks uses rows as citing instance
 
     # ----------------------- training & testing
@@ -362,7 +379,10 @@ def main(batchsize=None, epochs=1, explain=True, save=False, load=True, runs=1, 
                 if explain:
                     #validation(valid_set, gnn, nn, exp_adj, explain_data.x,explain_data.edge_index)
                     #utils_func.grid_e_g(valid_set, gnn, nn, exp_adj, explain_data.x,explain_data.edge_index)
-                    explains(valid_set, gnn, nn, exp_adj, explain_data.x,explain_data.edge_index)
+                    explains(valid_set, gnn, nn, exp_adj, explain_data.x,data.adj_t,True)
+
+                    #explains(valid_set, gnn, nn, exp_adj, data.x, data.edge_index)
+
                     pass
         average[run, 0] = valid_mrr[-1]
         average[run, 1] = test_mrr[-1]
