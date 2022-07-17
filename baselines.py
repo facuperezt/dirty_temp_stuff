@@ -10,14 +10,16 @@ from torch.nn.functional import relu
 import dataLoader
 import utils_func
 import utils
+import plots
 
-class NnBaseline(torch.nn.Module):
+
+class Baseline(torch.nn.Module):
 
     def __init__(self):
-        super(NnBaseline, self).__init__()
-        self.input = torch.nn.Linear(768, 256,bias=True)
-        self.hidden = torch.nn.Linear(256, 256,bias=True)
-        self.output = torch.nn.Linear(256, 1,bias=True)
+        super(Baseline, self).__init__()
+        self.input = torch.nn.Linear(768, 256, bias=True)
+        self.hidden = torch.nn.Linear(256, 256, bias=True)
+        self.output = torch.nn.Linear(256, 1, bias=True)
 
     def forward(self, x):
         h = self.input(x)
@@ -30,7 +32,7 @@ class NnBaseline(torch.nn.Module):
 
         return h
 
-    def lrp(self,rep,relevance, epsilon=0.0, gamma=0.0):
+    def lrp(self, rep, relevance, epsilon=0.0, gamma=0.0):
         def roh(layer):
             with torch.no_grad():
                 cp = copy.deepcopy(layer)
@@ -50,21 +52,19 @@ class NnBaseline(torch.nn.Module):
         A[1] = relu(self.input(rep)).data.clone().requires_grad_(True)
         A[2] = relu(self.hidden(A[1])).data.clone().requires_grad_(True)
 
-
-
         z = epsilon + roh(self.output).forward(A[2])
-        print("z",z.sum())
-        print("R2",R[2].sum())
-        print("R2/z",R[2]/z.sum())
+        print("z", z.sum())
+        print("R2", R[2].sum())
+        print("R2/z", R[2] / z.sum())
         s = R[2] / (z + 1e-15)
-        print("s",s.sum())
+        print("s", s.sum())
         (z * s.data).sum().backward()
-        print("a2",A[2].sum())
-        print("a2grad",A[2].grad.sum())
-        print("R1 manual",(A[2]*A[2].grad).sum())
+        print("a2", A[2].sum())
+        print("a2grad", A[2].grad.sum())
+        print("R1 manual", (A[2] * A[2].grad).sum())
         c = A[2].grad
         R[1] = A[2] * c
-        print("R",R[1].sum())
+        print("R", R[1].sum())
 
         z = epsilon + roh(self.hidden).forward(A[1])
         print(z.shape)
@@ -88,35 +88,37 @@ class NnBaseline(torch.nn.Module):
         src_grad = src.grad
         tar_grad = tar.grad
         """
-        print(R[0].sum(),R[1].sum(),R[2].sum())
+        print(R[0].sum(), R[1].sum(), R[2].sum())
 
         return test
 
-def explains(test_set, mlp, x,adj,rep):
-    src, tar = test_set["source_node"], test_set["target_node_neg"][:,0]
+
+def explains(test_set, mlp, x, adj, rep):
+    src, tar = test_set["source_node"], test_set["target_node_neg"][:, 0]
     walks_all = utils.walks(adj.t().to_dense())
     walks_all += utils.walks(adj.to_dense())
     # forward passes
-    preds = mlp(helper(rep, x, src, tar,train=False))
-    #print(preds)
-    #print(preds)
-    samples = [8,107,14, 453]
-    #print(preds[samples])
-    #samples=[preds.shape[0]-7]
+    preds = mlp(helper(rep, x, src, tar, train=False))
+    # print(preds)
+    # print(preds)
+    samples = [8, 107, 14, 453]
+    # print(preds[samples])
+    # samples=[preds.shape[0]-7]
     mean_r = 0
     for i in samples:
-
-        #walks = utils_func.find_walks(src[i], tar[i], walks_all)
-        print("?",preds[i])
-        R = mlp.lrp(helper(rep, x, src[i], tar[i]),preds[i])
+        # walks = utils_func.find_walks(src[i], tar[i], walks_all)
+        print("?", preds[i])
+        R = mlp.lrp(helper(rep, x, src[i], tar[i]), preds[i])
         mean_r += R
-        utils_func.NN_res(R,i)
+        utils_func.NN_res(R, i)
         """
         oneHopSrc, twoHopSrc = utils_func.get_nodes(adj,src[i])
         oneHopTar, twoHopTar = utils_func.get_nodes(adj, tar[i])
         utils_func.plot_explain_nodes(walks, src[i], tar[i], oneHopSrc, twoHopSrc, oneHopTar, twoHopTar,R)
         """
-    utils_func.NN_res(mean_r/len(samples),"mean")
+    utils_func.NN_res(mean_r / len(samples), "mean")
+
+
 def run_cn(evaluator, data_set, adj):
     src, tar, tar_neg = data_set["source_node"], data_set["target_node"], data_set["target_node_neg"]
     pos_preds, neg_preds = [], []
@@ -154,17 +156,19 @@ def run_cn(evaluator, data_set, adj):
         'y_pred_neg': neg_pred,
     })['mrr_list'].mean().item()
 
-def helper(rep, data, src, tar,train=True):
+
+def helper(rep, data, src, tar, train=True):
     if src.ndim >= 1:
         dim = src.shape[0]
-    else :
+    else:
         dim = 1
     if train:
-        x = torch.cat((rep[src, 128:256], rep[src, 0:128]-data[tar], data[src], data[tar], rep[tar, 0:128]-data[src],
-                       rep[tar, 128:256]))
+        x = torch.cat(
+            (rep[src, 128:256], rep[src, 0:128] - data[tar], data[src], data[tar], rep[tar, 0:128] - data[src],
+             rep[tar, 128:256]))
     else:
         x = torch.cat((
-                      rep[src, 128:256], rep[src, 0:128], data[src], data[tar], rep[tar, 0:128],rep[tar, 128:256]))
+            rep[src, 128:256], rep[src, 0:128], data[src], data[tar], rep[tar, 0:128], rep[tar, 128:256]))
 
     return torch.reshape(x, (dim, 128 * 6)).to(torch.float32)
 
@@ -184,11 +188,11 @@ def train(optimizer, train_set, rep, data, mlp, batchsize):
 
         # forward passes
         # positive sampling
-        out = torch.sigmoid(mlp(helper(rep, data, src, tar,train=True)))
+        out = torch.sigmoid(mlp(helper(rep, data, src, tar, train=True)))
         pos_loss = - torch.mean(torch.log(out + 1e-15))
 
         # negative sampling
-        out = torch.sigmoid(mlp(helper(rep, data, src, tar_neg,train=True)))
+        out = torch.sigmoid(mlp(helper(rep, data, src, tar_neg, train=True)))
         neg_loss = torch.log(1 - out + 1e-15)
         neg_loss = - torch.mean(neg_loss)
 
@@ -201,14 +205,14 @@ def train(optimizer, train_set, rep, data, mlp, batchsize):
 
         total_loss.append(loss)
         num_sample += batchsize
-    print(pos_loss,neg_loss)
+    print(pos_loss, neg_loss)
     print(sum(total_loss) / num_sample)
 
     return sum(total_loss) / num_sample
 
 
 @torch.no_grad()
-def test(evaluator, data_set, mlp, rep, data, batchsize,accuracy=True):
+def test(evaluator, data_set, mlp, rep, data, batchsize, accuracy=True):
     src, tar, tar_neg = data_set["source_node"], data_set["target_node"], data_set["target_node_neg"]
     permutation = torch.randperm(src.shape[0])
 
@@ -221,26 +225,26 @@ def test(evaluator, data_set, mlp, rep, data, batchsize,accuracy=True):
         tar_neg_tmp = tar_neg[idx]
 
         # positive sampling
-        pos_preds += [mlp(helper(rep, data, src_tmp, tar_tmp,train=False)).squeeze().cpu()]
+        pos_preds += [mlp(helper(rep, data, src_tmp, tar_tmp, train=False)).squeeze().cpu()]
 
         # negative sampling
         src_tmp = src_tmp.view(-1, 1).repeat(1, 20).view(-1)
         tar_neg_tmp = tar_neg_tmp.view(-1)
-        neg_preds += [mlp(helper(rep, data, src_tmp, tar_neg_tmp,train=False)).squeeze().cpu()]
+        neg_preds += [mlp(helper(rep, data, src_tmp, tar_neg_tmp, train=False)).squeeze().cpu()]
 
     pos_pred = torch.cat(pos_preds, dim=0)
     neg_pred = torch.cat(neg_preds, dim=0)
     if accuracy:
-        utils_func.accuracy(pos_pred,neg_pred)
+        plots.accuracy(pos_pred, neg_pred)
     neg_preds = neg_pred.view(-1, 20)
 
     return evaluator.eval({
         'y_pred_pos': pos_pred,
         'y_pred_neg': neg_preds,
-    })['mrr_list'].mean().item(),pos_pred,neg_pred
+    })['mrr_list'].mean().item(), pos_pred, neg_pred
 
 
-def runNN(epochs, load, save, batchsize=None, runs=1, plot=True,explain=False):
+def runNN(epochs, load, save, batchsize=None, runs=1, plot=True, explain=False):
     dataset = dataLoader.LinkPredData("data/", "mini_graph", use_small=True)
     split = dataset.get_edge_split()
     train_set, valid_set, test_set = split["train"], split["valid"], split["test"]
@@ -249,21 +253,21 @@ def runNN(epochs, load, save, batchsize=None, runs=1, plot=True,explain=False):
     data = dataset.load(transform=True)
     rep = torch.from_numpy(np.asarray(pd.read_csv("data/baseline_NN")))
 
-    # initilaization models
-    nn = NnBaseline()
+    # initilize models
+    nn = Baseline()
     if batchsize is None:
         batchsize = dataset.num_edges
     if explain:
         # to plot proper plot the the LRP-method we need all walks:
         explain_data = dataset.load(transform=True, explain=True)
-        #exp_adj = utils_func.adjMatrix(explain_data.edge_index,explain_data.num_nodes)  # Transpose of adj Matrix for find walks
-        # walks uses rows as citing instance
+        # exp_adj = utils_func.adjMatrix(explain_data.edge_index,explain_data.num_nodes)  # Transpose of adj Matrix
+        # for find walks walks uses rows as citing instance
     print(dataset.num_edges)
     if load:
         nn.load_state_dict(torch.load("model/nn_baseline_None_50_001_Nadam"))
 
     nn.to(device), data.to(device)
-    optimizer = torch.optim.Adam(list(nn.parameters()),lr=0.001)
+    optimizer = torch.optim.Adam(list(nn.parameters()), lr=0.0005)
 
     evaluator = Evaluator(name='ogbl-citation2')
 
@@ -272,15 +276,14 @@ def runNN(epochs, load, save, batchsize=None, runs=1, plot=True,explain=False):
     for run in range(runs):
         valid_mrr, test_mrr, loss = torch.zeros((epochs, 1)), torch.zeros((epochs, 1)), torch.zeros((epochs, 1))
         old = 0
-        pred_pos = np.zeros((epochs,test_set["target_node"].shape[0]))
-        pred_neg = np.zeros((epochs,9840))
+        pred_pos = np.zeros((epochs, test_set["target_node"].shape[0]))
+        pred_neg = np.zeros((epochs, 9840))
         for i in range(0, epochs):
             print(i)
             if save:
-                loss[i]= train(optimizer, train_set, rep, data.x, nn, batchsize).detach()
-
-            valid_mrr[i],pred_pos[i,:],pred_neg[i,:] = test(evaluator, valid_set, nn, rep, data.x, batchsize)
-            test_mrr[i],pred_pos[i,:],pred_neg[i,:]  = test(evaluator, test_set, nn, rep, data.x, batchsize)
+                loss[i] = train(optimizer, train_set, rep, data.x, nn, batchsize).detach()
+            valid_mrr[i], pred_pos[i, :], pred_neg[i, :] = test(evaluator, valid_set, nn, rep, data.x, batchsize)
+            test_mrr[i], pred_pos[i, :], pred_neg[i, :] = test(evaluator, test_set, nn, rep, data.x, batchsize)
 
             if valid_mrr[i] > old and save:
                 old = valid_mrr[i]
@@ -288,14 +291,14 @@ def runNN(epochs, load, save, batchsize=None, runs=1, plot=True,explain=False):
 
             if i == epochs - 1:
                 if save:
-                    torch.save(tmp_nn, "model/nn_baseline_None_50_001_80")
+                    torch.save(tmp_nn, "model/nn_baseline_None_50_001_80_stuff")
                 if plot:
-                    utils_func.plot_curves(epochs, [valid_mrr, test_mrr, loss],
-                                           ["Valid MRR", "Test MRR", "Trainings Error"], 'Model Error',
-                                           file_name="NN_Baseline" + "performance.pdf")
+                    plots.plot_curves(epochs, [valid_mrr, test_mrr, loss],
+                                      ["Valid MRR", "Test MRR", "Trainings Error"], 'Model Error',
+                                      file_name="NN_" + "performance_10")
                 if explain:
-                    explains(test_set, nn,explain_data.x,explain_data.adj_t,rep)
-        #utils_func.accuracy_overtrain(pred_pos, pred_neg, epochs)
+                    explains(test_set, nn, explain_data.x, explain_data.adj_t, rep)
+        # utils_func.accuracy_overtrain(pred_pos, pred_neg, epochs)
 
         average[run, 0] = valid_mrr[-1]
         average[run, 1] = test_mrr[-1]
@@ -307,7 +310,7 @@ def runNN(epochs, load, save, batchsize=None, runs=1, plot=True,explain=False):
 
 def main():
     # run all baseline and return results
-    runNN(epochs=1, load=True, save=False, batchsize=None, runs=1, plot=False)
+    runNN(epochs=1, load=True, save=False, batchsize=None, runs=1, plot=True)
     dataset = dataLoader.LinkPredData("data/", "mini_graph", use_small=True)
     data = dataset.load()
     split = dataset.get_edge_split()
@@ -317,6 +320,7 @@ def main():
 
     print(run_cn(evaluator, test_set, data.adj_t.to_dense()))
     print(run_cn(evaluator, valid_set, data.adj_t.to_dense()))
+
 
 #    create_Dataset(data.adj.to_symmetric(),data.x)
 

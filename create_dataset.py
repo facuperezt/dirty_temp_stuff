@@ -166,6 +166,7 @@ def graph_statistics(data):
     adj = data.adj_t
     in_deg = adj.sum(dim=0)
     out_deg = adj.sum(dim=1)
+    print(out_deg.sum(),in_deg.sum())
     deg = in_deg + out_deg
 
     avrg_in = in_deg.sum() / data.num_nodes
@@ -323,16 +324,25 @@ def main():
     get_graph(data,year)
     reindexing()
     """
+    #dataset = dataLoader.LinkPredData("data/", "big_graph", use_small=False)
+    #data = dataset.load(transform=True, explain=False)
+    #graph_statistics(data)
+    #print(np.std(data.x),np.std(data.x).sum())
     dataset = dataLoader.LinkPredData("data/", "mini_graph", use_small=True)
-    data = dataset.load(transform=False, explain=True)
-    edgeindex = data.edge_index
-    data = dataset.load(transform=False, explain=True)
+    data = dataset.load(transform=True, explain=False)
+    #graph_statistics(data)
+    split = dataset.get_edge_split()
+    train_set, valid_set, test_set = split["train"], split["valid"], split["test"]
+    print(train_set["source_node"].shape,valid_set["source_node"].shape)
+
+    #edgeindex = data.edge_index
+    #data = dataset.load(transform=False, explain=True)
     #graph_statistics(data)
     #graph_split(data)
     #print(test_data)
     #create_Dataset(data.adj_t.to_symmetric().to_dense(),data.x)
     #samples(data,dataset.get_edge_split())
-    split = dataset.get_edge_split()
+    #split = dataset.get_edge_split()
     #validation_lrp(data,split["valid"],utils_func.adjMatrix(edgeindex,data.num_nodes),"2100_50_001")
 if __name__ == "__main__":
     main()

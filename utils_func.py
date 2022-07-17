@@ -136,9 +136,8 @@ def masking(gnn, nn, input, src, tar, edge_index, adj, walk, gamma=0):
     M[2] = torch.FloatTensor(np.eye(x.shape[0])[walk[2]][:, np.newaxis])
     M[3] = torch.FloatTensor(np.eye(x.shape[0])[walk[3]][:, np.newaxis])
     H = [None] * 6
-
+    print(M[0].shape)
     y = x * M[0] + (1 - M[0]) * x.data
-    #x.retain_grad()
 
     H[0] = copy.deepcopy(gnn.input).forward(y, edge_index).clamp(min=0)
     H[0] = H[0] * M[1] + (1 - M[1]) * H[0].data
@@ -167,6 +166,36 @@ def walks(A, src, tar):
                     w += [[v4, v3, v2, v1.numpy().flatten()[0]]]
 
     return w
+
+def self_loops(rx, ry):
+    loops = []
+    scale_x = 0.1 * numpy.cos(numpy.linspace(0, 2 * numpy.pi, 50))
+    scale_y = 0.1 * numpy.sin(numpy.linspace(0, 2 * numpy.pi, 50))
+    if (rx[0] == rx[1] and ry[0] == ry[1]) and (rx[2] == rx[3] and ry[2] == ry[3]):
+        rx = rx[0] + scale_x
+        ry = ry[0] + scale_y
+        loops.append((rx, ry))
+        rx = rx[3] + scale_x
+        ry = ry[3] + scale_y
+        loops.append((rx, ry))
+    elif rx[0] == rx[1] == rx[2] == rx[3] and ry[0] == ry[1] == ry[2] == ry[3]:  # Added numpy.all()
+        rx = rx[0] + scale_x
+        ry = ry[0] + scale_y
+        loops.append((rx, ry))
+
+    elif (rx[0] == rx[1] == rx[2] and ry[0] == ry[1] == ry[2]) or \
+            (rx[0] == rx[1] and ry[0] == ry[1]):
+        rx = rx[0] + scale_x
+        ry = ry[0] + scale_y
+        loops.append((rx, ry))
+
+    elif (rx[1] == rx[2] == rx[3] and ry[1] == ry[2] == ry[3]) or \
+            (rx[2] == rx[3] and ry[2] == ry[3]):
+        rx = rx[3] + scale_x
+        ry = ry[3] + scale_y
+        loops.append((rx, ry))
+
+    return loops
 
 
 def validation(walks:list,relevance:list,node_src,pruning :bool, activation:bool,plot:bool):

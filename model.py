@@ -91,18 +91,19 @@ class GNN(torch.nn.Module):
         (z * s.data).sum().backward()
         c = A[0].grad
         R[0] = A[0].data * c
-        #print((np.where(R[0])))
         R[0] = R[0][walk[0]]
 
         #print(walk)
         #print("     GNN out",R[0].sum(),c.sum())
 
-        #return (R[2].sum().detach(),R[1].sum().detach(),R[0].sum().detach())
+        #FOr bar plot layers
+        #return (R[3].sum().detach(),R[2].sum().detach(),R[1].sum().detach(),R[0].sum().detach())
 
         #print("Walk", (x.grad * x.data).sum(), x.grad.sum())
         #print(np.where((x.grad * x.data)))
-        #print(R[0].sum())
+        #print(R[0].sum(),R[1].sum(),R[2].sum(),walk)
         return R[0].detach().numpy()
+
 class NN(torch.nn.Module):
     """
     3-Layer MLP with 256 input and hidden neurons and 1 output neuron
@@ -209,6 +210,7 @@ def train(batchsize, train_set, x, adj, optimizer, gnn, nn):
         num_sample += batchsize
         # print("Num of samples done: ", num_sample, "/", train_set["source_node"].shape[0], " batch loss :", loss)
 
+
     return sum(total_loss) / num_sample
 
 
@@ -219,46 +221,61 @@ def explains(test_set, gnn, mlp, adj, x,edge_index,do_validation=False):
     mid = gnn(x, edge_index)  # features, edgeindex
     pos_pred = mlp(mid[src], mid[tar])
 
-    samples = [53,47,5,188,105]
     samples = [483,474,472,466,436,435,429,408,402,398,
                380,347,336,320,307,305,270,255,227,216,
                53,47,5,188,105,12,34,56,66,70]
+    #samples = [53, 47, 5, 188, 105]
+    #samples = [5]
     abs_R = 0
     y = copy.deepcopy(x)
     z = copy.deepcopy(x)
-    gammas = [0.2,0.5]#,1,20]
-    gammas = [0.0]
-    val = []
-    for i in samples:
-        e = 0.0
-        for gamma in gammas:
+    #gammas = [0.2,0.5,1,20]
+    gammas = [0.02]#,0.0,0.5,100]
 
+    random = False
+    val_mul =[]
+    score = 0
+    for gamma in gammas:
+        e = 0.0
+        val = []
+        """
+        if len(val_mul) >= 0:
+            random = False
+            if len(val_mul) == 2:
+                e = 0.2
+        """
+        for i in samples :
+            #print(e,gamma)
             walks = utils_func.walks(adj,src[i], tar[i])
-            """
-            nodes = list(set(np.asarray(walks).flatten()))
-            if 25 <= len(nodes) <= 60:
-                print(i, len(walks))
-                val.append(i)
-            """
+
+
             r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i],gamma=gamma,epsilon=e)
             p = []
             m=0
-            #plots.plt_sum(walks,gnn,r_src,r_tar,tar[i],x, edge_index)
+            #plots.plt_sum(walks,gnn,r_src,r_tar,tar[i],x, edge_index,pos_pred[i])
             for walk in walks:
                 p.append(gnn.lrp(y, edge_index, walk, r_src, r_tar, tar[i],gamma=gamma,epsilon=e))
                 #m += utils_func.masking(gnn,mlp,z,src[i],tar[i],edge_index,adj,walk,gamma=gamma)
 
             if do_validation:
+                if random == True:
+                    p = validation.validation_random(walks,(r_src.detach().sum()+r_tar.detach().sum()))
                 val.append(validation.validation_results(gnn, mlp, x, edge_index, walks, p, src[i], tar[i],pruning=True, activaton=False))
+            #score += utils.similarity(walks,p,x,tar[i],"max")
             #utils_func.validation(walks,p,src[i],pruning=True,activation=False,plot=True)
             #walks.append([src[i].numpy(), src[i].numpy(), src[i].numpy(), tar[i].numpy()])
 
             #a, pr = utils_func.validation(walks,p,src[i],pruning=True,activation=False,plot=True)
             #abs_R+= plots.plot_explain(p, src[i], tar[i], walks, "pos",gamma,x)
-    validation.validation_avg_plot(val, 57)
+        val_mul.append(validation.validation_avg_plot(val, 57))
+    print(gamma, e, val_mul)
+    #validation.validation_multiplot(val_mul[0],val_mul[1],val_mul[2])
+
             #utils_func.plt_sum(p,pos_pred[i])
         #utils_func.plot_abs(abs_R,samples)
     #print(abs_R,abs_R/len(src))
+    score /= len(samples)
+    print(score)
 @torch.no_grad()
 def test(batchsize, data_set, x, adj, evaluator, gnn, nn,accuracy=False):
     tmp = data_set["source_node"].shape[0]
@@ -283,7 +300,7 @@ def test(batchsize, data_set, x, adj, evaluator, gnn, nn,accuracy=False):
 
     pos_pred = torch.cat(pos_preds, dim=0)
     neg_pred = torch.cat(neg_preds, dim=0)
-    if accuracy : utils_func.accuracy(pos_pred,neg_pred)
+    if accuracy : plots.accuracy(pos_pred,neg_pred)
     neg_pred = neg_pred.view(-1, 20)
 
 
@@ -306,6 +323,7 @@ def main(batchsize=None, epochs=1, explain=True, save=False, load=True, runs=1, 
     split = dataset.get_edge_split()
     train_set, valid_set, test_set = split["train"], split["valid"], split["test"]
 
+    """
     data.adj_t.to_symmetric()
     # Pre-compute GCN normalization.
     adj_t = data.adj_t.set_diag()
@@ -314,15 +332,15 @@ def main(batchsize=None, epochs=1, explain=True, save=False, load=True, runs=1, 
     deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
     adj_t = deg_inv_sqrt.view(-1, 1) * adj_t * deg_inv_sqrt.view(1, -1)
     data.adj_t = adj_t
-
-    # TODO how to degree matrix lets do out for now
     """
+    # TODO how to degree matrix lets do out for now
+
     tmp = data.adj_t.set_diag()
     deg = tmp.sum(dim=0).pow(-0.5)
     deg[deg == float('inf')] = 0
     tmp = deg.view(-1, 1) * tmp * deg.view(1, -1)
     data.adj_t = tmp
-    """
+
     """
     # manipulating train for mrr computation
     permutation = torch.randperm(int(np.array(train_set["source_node"].shape[0])))[0:126]
@@ -335,10 +353,11 @@ def main(batchsize=None, epochs=1, explain=True, save=False, load=True, runs=1, 
     # initilaization models
     gnn, nn = GNN(), NN()
     if load:
-        gnn.load_state_dict(torch.load("model/gnn_2100_50_001"))
-        nn.load_state_dict(torch.load("model/nn_2100_50_001"))
+        gnn.load_state_dict(torch.load("model/gnn_2100_50_0015"))
+        nn.load_state_dict(torch.load("model/nn_2100_50_0015"))
     gnn.to(device), nn.to(device), data.to(device)
-    optimizer = torch.optim.Adam(list(gnn.parameters()) + list(nn.parameters()),lr=0.01) #redo 2100 0.005
+    optimizer = torch.optim.Adam(list(gnn.parameters()) + list(nn.parameters()),lr=0.0005
+                                 ) #redo 2100 0.005
     evaluator = Evaluator(name='ogbl-citation2')
 
     # adjusting batchsize for full Dataset
@@ -360,8 +379,8 @@ def main(batchsize=None, epochs=1, explain=True, save=False, load=True, runs=1, 
             print(i)
             if save:
                 loss[i] = train(batchsize, train_set, data.x, data.adj_t, optimizer, gnn, nn).detach()
-            #test_mrr[i] = test(batchsize, test_set, data.x, data.adj_t, evaluator, gnn, nn)
-            #valid_mrr[i] = test(batchsize, valid_set, data.x, data.adj_t, evaluator, gnn, nn)
+            valid_mrr[i] = test(batchsize, valid_set, data.x, data.adj_t, evaluator, gnn, nn)
+            test_mrr[i] = test(batchsize, test_set, data.x, data.adj_t, evaluator, gnn, nn)
 
             if valid_mrr[i] > old and save:
                 old = valid_mrr[i]
@@ -369,14 +388,18 @@ def main(batchsize=None, epochs=1, explain=True, save=False, load=True, runs=1, 
                 tmp_nn = copy.deepcopy(nn.state_dict())
 
             if i == epochs - 1:
-                if save:
-                    torch.save(tmp_gnn, "model/gnn_2100_50_001")
-                    torch.save(tmp_nn, "model/nn_2100_50_001")
+                if save and False:
+                    torch.save(tmp_gnn, "model/gnn_None_50_001_new")
+                    torch.save(tmp_nn, "model/nn_None_50_001_new")
                 if plot:
-                    utils_func.plot_curves(epochs, [valid_mrr, test_mrr, loss],
+                    plots.plot_curves(epochs, [valid_mrr, test_mrr, loss],
                                            ["Valid MRR", "Test MRR", "Trainings Error"], 'Model Error',
-                                           file_name="GNN" + "performance.pdf")
+                                           file_name="GNN" + "performance")
                 if explain:
+
+                    #
+                    #validation.validation_multiplot(0,0,0)
+                    #plots.sumlrp()
                     #validation(valid_set, gnn, nn, exp_adj, explain_data.x,explain_data.edge_index)
                     #utils_func.grid_e_g(valid_set, gnn, nn, exp_adj, explain_data.x,explain_data.edge_index)
                     explains(valid_set, gnn, nn, exp_adj, explain_data.x,data.adj_t,True)
