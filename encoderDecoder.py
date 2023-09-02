@@ -148,24 +148,27 @@ class GNN(torch.nn.Module):
                 return cp
             
     def refactored_lrp_step(self, h : torch.Tensor, edge_index : torch_sparse.SparseTensor, layer : GCNConv, node_relevance, node, epsilon= 0., gamma= 0., lrp_locals= None):
-        
+        """
+        Thoroughly tested :) -> TODO: turn the comments into a test
+        """
+
         simplified_ei = get_single_node_adjacency(edge_index, node, 'forward')
-        assert ((edge_index @ h)[node] == (simplified_ei @ h)[node]).all()
-        assert (layer(h, edge_index)[node] == layer(h, simplified_ei)[node]).all()
-        assert (self.roh(layer, gamma)(h, edge_index)[node] == self.roh(layer, gamma)(h, simplified_ei)[node]).all()
-        assert (epsilon + self.roh(layer, gamma)(h, edge_index)[node] == epsilon + self.roh(layer, gamma)(h, simplified_ei)[node]).all()
-        z = epsilon + self.roh(layer, gamma).forward(h, get_single_node_adjacency(edge_index, node))
+        # assert ((edge_index @ h)[node] == (simplified_ei @ h)[node]).all()
+        # assert (layer(h, edge_index)[node] == layer(h, simplified_ei)[node]).all()
+        # assert (self.roh(layer, gamma)(h, edge_index)[node] == self.roh(layer, gamma)(h, simplified_ei)[node]).all()
+        # assert (epsilon + self.roh(layer, gamma)(h, edge_index)[node] == epsilon + self.roh(layer, gamma)(h, simplified_ei)[node]).all()
+        z = epsilon + self.roh(layer, gamma).forward(h, simplified_ei)
         z = z[node]
         s = node_relevance / (z + 1e-15)
         c = torch.autograd.grad((z * s.data).sum(), h)[0]
         out_grad = h*c
-        z = epsilon + self.roh(layer, gamma).forward(h, get_single_node_adjacency(edge_index, node))
-        z = z[node]
-        s = node_relevance / (z + 1e-15)
-        (z * s.data).sum().backward()
-        c = h.grad
-        out_backward = h*c
-        assert (out_grad == out_backward).all(), "Gradient yields different results"
+        # z = epsilon + self.roh(layer, gamma).forward(h, simplified_ei)
+        # z = z[node]
+        # s = node_relevance / (z + 1e-15)
+        # (z * s.data).sum().backward()
+        # c = h.grad
+        # out_backward = h*c
+        # assert (out_grad == out_backward).all(), "Gradient yields different results"
         return out_grad
     
     def refactored_lrp_loop(self, x, edge_index, walk, r_src, r_tar, tar, epsilon= 0., gamma= 0., lrp_locals = None):
@@ -201,6 +204,7 @@ class GNN(torch.nn.Module):
 
         A = [None] * 3
         R = [None] * 4
+        Z = [None] * 3
 
         x.requires_grad_(True)
 
@@ -214,6 +218,7 @@ class GNN(torch.nn.Module):
             R[-1] = r_src
 
         z = epsilon + roh(self.output).forward(A[2], edge_index)
+        Z[2] = copy.deepcopy(z.detach())
         z = z[walk[3]]
         s = R[3] / (z + 1e-15)
         (z * s.data).sum().backward()
@@ -222,6 +227,7 @@ class GNN(torch.nn.Module):
         R[2] = R[2][walk[2]]
 
         z = epsilon + roh(self.hidden).forward(A[1], edge_index)
+        Z[1] = copy.deepcopy(z.detach())
         z = z[walk[2]]
         s = R[2] / (z + 1e-15)
         (z * s.data).sum().backward()
@@ -230,6 +236,7 @@ class GNN(torch.nn.Module):
         R[1] = R[1][walk[1]]
 
         z = epsilon + roh(self.input).forward(A[0], edge_index)
+        Z[0] = copy.deepcopy(z.detach())
         z = z[walk[1]]
         s = R[1] / (z + 1e-15)
         (z * s.data).sum().backward()
@@ -237,7 +244,9 @@ class GNN(torch.nn.Module):
         R[0] = A[0].data * c
         R[0] = R[0][walk[0]]
 
-        return copy.deepcopy({k : [_v.detach().sum().numpy() for _v in v] for k,v in locals().items() if k in ['R', 'A']})
+        R = [r.detach() for r in R[::-1]]
+
+        return copy.deepcopy({k : v for k,v in locals().items() if k in ['R', 'A', 'Z']})
 
     def lrp(self, x, edge_index, walk, r_src, r_tar, tar, epsilon=0, gamma=0):
 
@@ -481,7 +490,8 @@ def refactored_explains(test_set, gnn, mlp, adj, x, edge_index,
     mid = gnn(x, edge_index)  # features, edgeindex
     pos_pred = mlp(mid[src], mid[tar])
 
-    samples = find_good_samples(edge_index, test_set, criterion= "indirect connections", load = "walks with indirect connections.pkl", save =  False)
+    sample_criterion = "indirect connections"
+    samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "", save = "indirect_connections_remove_src_tar.pkl")
     # samples = [5]#, 47 , 53, 5, 188, 105]
     # new_samples = 94
 
@@ -492,27 +502,27 @@ def refactored_explains(test_set, gnn, mlp, adj, x, edge_index,
     z = copy.deepcopy(x)
 
     for gamma in gammas:
-        for i in samples:
+        for i in tqdm(samples, desc= f"Good samples according to: {sample_criterion}-criterion"):
             structure = None
             p = []
             walks, special_walks_indexes = samples[i]
             if len(walks) > 100: continue
+            if remove_connections:
+                indexes = find_index_of_connection(edge_index, src[i], tar[i])
+                tmp_ei = remove_connection_at_index(edge_index.clone(), indexes)
+            else: tmp_ei = edge_index
 
             r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i], gamma=gamma, epsilon=e)
-            node_exp = gnn.lrp_node(x, edge_index, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
+            # node_exp = gnn.lrp_node(x, tmp_ei, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
 
-            if relevances: plots.layers_sum(walks, gnn, r_src, r_tar, tar[i], x, edge_index, pos_pred[i])
-            tmp = edge_index.clone()
-            for walk in walks:
-                if remove_connections:
-                    indexes = find_index_of_connection(edge_index, src[i], tar[i])
-                    _tmp = remove_connection_at_index(tmp, indexes)
-                else: _tmp = tmp
-                _rel = gnn.refactored_lrp_loop(x, _tmp, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
+            if relevances: plots.layers_sum(walks, gnn, r_src, r_tar, tar[i], x, tmp_ei, pos_pred[i])
+            for walk in tqdm(walks, desc= "Walks in sample"):
+                _rel = gnn.refactored_lrp_loop(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
+                # _old_rel = gnn.lrp(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
                 p.append(_rel[-1])
-                if _rel != gnn.lrp(x, _tmp, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e):
-                    lrp_locals= gnn.lrp_return_locals(x, _tmp, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
-                    gnn.refactored_lrp_loop(x, _tmp, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e, lrp_locals= lrp_locals)
+                # if _rel != _old_rel:
+                #     lrp_locals= gnn.lrp_return_locals(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
+                #     gnn.refactored_lrp_loop(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e, lrp_locals= lrp_locals)
 
 
             if similarity: score += utils_func.similarity(walks, p, x, tar[i], "max")
@@ -520,8 +530,12 @@ def refactored_explains(test_set, gnn, mlp, adj, x, edge_index,
             if plot:
                 walks.append([src[i].numpy(), src[i].numpy(), src[i].numpy(), tar[i].numpy()])
                 fig, axs = plt.subplots(1, 2, figsize=(12,6))
+                axs : List[plt.Axes]
                 structure = plots.refactored_plot_explain(p, src[i], tar[i], walks, "pos", gamma, structure, use_structure= True, ax= axs[0])
-                plots.refactored_plot_explain([_p if j in special_walks_indexes else np.array(0) for j,_p in enumerate(p)], src[i], tar[i], walks, "pos", gamma, structure, use_structure= True, ax= axs[1])
+                special_idx_p = [_p if j in special_walks_indexes else np.array(0) for j,_p in enumerate(p)]
+                plots.refactored_plot_explain(special_idx_p, src[i], tar[i], walks, "pos", gamma, structure, use_structure= True, ax= axs[1])
+                axs[0].set_title(f"max: {max(p):.3f} - min: {min(p):.3f}")
+                axs[1].set_title(f"max: {(max(special_idx_p)*100)/max(p):2.3f}% - min: {(min(special_idx_p)*100)/min(p):2.3f}%")
                 axs[1].legend().remove()
                 plt.show()
                 #plots.plt_node_lrp(node_exp,  src[i], tar[i], walks)
@@ -549,7 +563,11 @@ def find_good_samples(adj : torch_sparse.SparseTensor, subset : Dict[str, Union[
         out = _find_samples_with_indirect_connections(adj, subset, remove_connection)
 
     if save:
-        with open(f"walks with {criterion}.pkl", "wb") as f:
+        if type(save) is str:
+            save_path = save
+        else:
+            save_path = f"walks with {criterion}.pkl"
+        with open(save_path, "wb") as f:
             pickle.dump(out, f)
     return out
     

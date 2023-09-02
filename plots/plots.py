@@ -265,7 +265,7 @@ def refactored_plot_explain(relevances, src, tar, walks, pos, gamma, structure= 
     # axs.set_xlim(-1.8, 1.8)
     # axs.set_ylim(-1.8, 1.8)
     val_abs = 0
-    max_abs = np.abs(max(map((lambda x: x.sum()), relevances)))
+    max_abs = np.abs(relevances).max()
 
     sum_s = 0
     sum_t = 0
@@ -282,7 +282,8 @@ def refactored_plot_explain(relevances, src, tar, walks, pos, gamma, structure= 
             sum_c += np.abs(r)
 
         points = get_walk_points(place, nodes, walk)
-        plot_walk_trace(points, ax, r, np.clip((3 / max_abs) * r, 0, 1))
+        alpha = np.clip((3 / max_abs) * np.abs(r), 0, 1)
+        plot_walk_trace(points, ax, r, alpha)
         a = [place[nodes.index(walk[0]), 0], place[nodes.index(walk[1]), 0], place[nodes.index(walk[2]), 0],
              place[nodes.index(walk[3]), 0]]
         b = [place[nodes.index(walk[0]), 1], place[nodes.index(walk[1]), 1], place[nodes.index(walk[2]), 1],
@@ -332,7 +333,7 @@ def refactored_plot_explain(relevances, src, tar, walks, pos, gamma, structure= 
     gamma = gamma.replace('.', '')
     node = str(src)
     name = "LRP_plot_" + pos + "_example_" + node + gamma + "0.svg"
-    plt.tight_layout()
+    # plt.tight_layout()
     # fig.savefig(name)
     # fig.show()
     return {'graph' : graph, 'nodes' : nodes, 'place' : place, 'x_y': [x,y]}
@@ -362,7 +363,7 @@ def plot_walk_trace(points, ax, rel, alpha):
             Path.CURVE4,
         ]
     path = Path(points, codes)
-    color = 'indianred' if np.sign(rel) else 'slateblue'
+    color = 'indianred' if np.sign(rel) > 0 else 'slateblue'
     patch = patches.PathPatch(path, edgecolor= color, alpha= 0 if np.isnan(alpha) else alpha, facecolor='none', lw=2)
     ax.add_patch(patch)
 
