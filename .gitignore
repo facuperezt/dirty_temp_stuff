@@ -19,4 +19,5 @@ outdated/verification.py
 *.zip
 *.svg
 *.jpeg
+*.pkl
 encoderDecoder2.py
