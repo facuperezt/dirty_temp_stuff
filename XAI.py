@@ -12,6 +12,9 @@ import torch_geometric
 import copy
 import itertools
 from plots import plots
+from encoderDecoder import GNN, NN
+from utils.graph_utils import find_index_of_connection, remove_connection_at_index, find_good_samples
+from typing import Dict
 
 
 
@@ -63,6 +66,145 @@ def gradCAM(adj, gnn,nn, H0):
     H = H.sum(dim=1) / 20 ** .5
 
     return H
+
+def explains_ronja(test_set, gnn, mlp, adj, x, edge_index,walks, validation_plot=False, prunning=True, masking=False,
+             similarity=False,
+             plot=True, relevances=False,
+             remove_connections= False):
+    src, tar = test_set["source_node"], test_set["target_node"]
+    # forward passes
+    mid = gnn(x, edge_index)  # features, edgeindex
+    pos_pred = mlp(mid[src], mid[tar])
+
+    samples = [5, 47 , 53, 5, 188, 105]
+    structure = None
+    random = False
+    val_mul = []
+    score = 0
+    e = 0.0
+    gammas = [0.0]  # [0.0, 0.02,0.0,0.02]
+    gamma = 0.02
+    z = copy.deepcopy(x)
+
+    for gamma in gammas:
+        if validation_plot: val = []
+        for i in samples:
+            # print(src[i], tar[i])
+
+            p = []
+            tmp = adj.clone()
+            if remove_connections:
+                tmp[src[i], tar[i]] = 0
+                tmp[tar[i], src[i]] = 0
+            walks = utils_func.walks(tmp, src[i], tar[i])
+
+            r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i], gamma=gamma, epsilon=e)
+            node_exp = gnn.lrp_node(x, edge_index, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
+
+            if relevances: plots.layers_sum(walks, gnn, r_src, r_tar, tar[i], x, edge_index, pos_pred[i])
+            _tmp = edge_index.clone()
+            if remove_connections:
+                tmp = edge_index.to_dense()
+            for walk in walks:
+                if prunning:
+                    if remove_connections:
+                        _store_tmp = (tmp[src[i], tar[i]], tmp[tar[i], src[i]])
+                        tmp[src[i], tar[i]] = 0
+                        tmp[tar[i], src[i]] = 0
+                        _tmp = torch_sparse.to_torch_sparse(tmp.nonzero().T, tmp[tmp.nonzero(as_tuple=True)].flatten(), tmp.shape[0], tmp.shape[1]).coalesce()
+                        tmp[src[i], tar[i]], tmp[tar[i], src[i]] = _store_tmp
+                    p.append(gnn.lrp(x, _tmp, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)[-1])
+
+
+                if masking:
+                    utils_func.masking(gnn, mlp, z, src[i], tar[i], edge_index, adj, walk, gamma=gamma)
+            if validation_plot:
+                if random:
+                    p = validation.validation_random(walks, (r_src.detach().sum() + r_tar.detach().sum()))
+                val.append(validation.validation_results(gnn, mlp, x, edge_index, walks, p, src[i], tar[i],
+                                                         pruning=True, activaton=False))
+            if similarity: score += utils_func.similarity(walks, p, x, tar[i], "max")
+
+            if plot:
+                walks.append([src[i].numpy(), src[i].numpy(), src[i].numpy(), tar[i].numpy()])
+                structure = plots.plot_explain(p, src[i], tar[i], walks, "pos", gamma, structure, use_structure= False)
+                #plots.plt_node_lrp(node_exp,  src[i], tar[i], walks)
+
+        if gamma == 0.02: e = 0.2
+
+        if validation_plot and average:
+            val_mul.append(validation.validation_avg_plot(val, 57))
+    if validation_plot and average:
+        validation.validation_multiplot(val_mul[0], val_mul[1], val_mul[2], val_mul[3])
+        validation.sumUnderCurve(val_mul[0], val_mul[2], val_mul[1], val_mul[3])
+    if similarity:
+        score /= len(samples)
+        print("similarity score is:", score)
+
+def refactored_explains(
+        test_set : Dict[str, torch.Tensor],
+        gnn : GNN,
+        mlp : NN,
+        adj : object, # only for compatibility with ronja
+        x : torch.Tensor,
+        edge_index : torch_sparse.SparseTensor,
+        similarity : bool = False,
+        plot : bool = True,
+        relevances : bool = False,
+        remove_connections : bool = False,
+        **kwargs,
+        ):
+
+    src, tar = test_set["source_node"], test_set["target_node"]
+    # forward passes
+    mid = gnn(x, edge_index)  # features, edgeindex
+    pos_pred = mlp(mid[src], mid[tar])
+
+    sample_criterion = "indirect connections"
+    samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "", save = "indirect_connections_remove_src_tar.pkl")
+    # samples = [5]#, 47 , 53, 5, 188, 105]
+    # new_samples = 94
+
+    score = 0
+    e = 0.0
+    gammas = [0.0]  # [0.0, 0.02,0.0,0.02]
+    gamma = 0.02
+    z = copy.deepcopy(x)
+
+    for gamma in gammas:
+        for i in tqdm(samples, desc= f"Good samples according to: {sample_criterion}-criterion"):
+            p = []
+            structure = None
+            walks, special_walks_indexes = samples[i]
+            if len(walks) > 100: continue
+            if remove_connections:
+                indexes = find_index_of_connection(edge_index, src[i], tar[i])
+                tmp_ei = remove_connection_at_index(edge_index.clone(), indexes)
+            else: tmp_ei = edge_index
+
+            r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i], gamma=gamma, epsilon=e)
+            # node_exp = gnn.lrp_node(x, tmp_ei, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
+
+            if relevances: plots.layers_sum(walks, gnn, r_src, r_tar, tar[i], x, tmp_ei, pos_pred[i])
+            for walk in tqdm(walks, desc= "Walks in sample"):
+                _rel = gnn.refactored_lrp_loop(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
+                # _old_rel = gnn.lrp(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
+                p.append(_rel[-1])
+                # if _rel != _old_rel:
+                #     lrp_locals= gnn.lrp_return_locals(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
+                #     gnn.refactored_lrp_loop(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e, lrp_locals= lrp_locals)
+
+
+            if similarity: score += utils_func.similarity(walks, p, x, tar[i], "max")
+
+            if plot:
+                walks.append([src[i].numpy(), src[i].numpy(), src[i].numpy(), tar[i].numpy()])
+                structure = plots.side_by_side_plot(p, special_walks_indexes, src[i], tar[i], walks, gamma, structure)
+                #plots.plt_node_lrp(node_exp,  src[i], tar[i], walks)
+
+    if similarity:
+        print("similarity score is:", torch.mean(score))
+
 
 def explains(gnn, mlp, adj, x, edge_index,src,tar,walks, validation_plot=False, prunning=True, masking=False,
              similarity=False,

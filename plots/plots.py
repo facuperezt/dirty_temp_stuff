@@ -9,6 +9,7 @@ from openTSNE import TSNE
 import scipy.sparse as ssp
 from utils import utils_func, utils
 from itertools import groupby
+from typing import List
 
 def node_plt(walks, gnn, r_src, r_tar, tar, x, edge_index, pred):
     pass
@@ -234,6 +235,18 @@ def plot_explain(relevances, src, tar, walks, pos, gamma):
     fig.savefig(name)
     fig.show()
     return val_abs
+
+def side_by_side_plot(p, special_walks_indexes, src, tar, walks, gamma, structure):
+    fig, axs = plt.subplots(1, 2, figsize=(12,6))
+    axs : List[plt.Axes]
+    structure = refactored_plot_explain(p, src, tar, walks, "pos", gamma, structure, use_structure= True, ax= axs[0])
+    special_idx_p = [_p if j in special_walks_indexes else np.array(0) for j,_p in enumerate(p)]
+    refactored_plot_explain(special_idx_p, src, tar, walks, "pos", gamma, structure, use_structure= True, ax= axs[1])
+    axs[0].set_title(f"max: {max(p):.3f} - min: {min(p):.3f}")
+    axs[1].set_title(f"max: {(max(special_idx_p)*100)/max(p):2.3f}% - min: {(min(special_idx_p)*100)/min(p):2.3f}%")
+    axs[1].legend().remove()
+    plt.show()
+    return structure
 
 
 def refactored_plot_explain(relevances, src, tar, walks, pos, gamma, structure= None, use_structure= False, ax= None):

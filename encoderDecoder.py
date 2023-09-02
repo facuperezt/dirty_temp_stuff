@@ -12,7 +12,7 @@ import pandas as pd
 
 import XAI
 import dataLoader
-from utils import validation, utils_func, utils, ainb
+from utils import validation, utils_func, utils, ainb, graph_utils
 from plots import plots
 from GNNexplainer import gnnexplainer, get_top_edges_edge_ig, CAM
 from typing import Literal, Dict, List, Union
@@ -31,7 +31,7 @@ class GCNLayer(torch.nn.Module):
         adj = adj.to_dense()
         return torch.spmm(adj, self.layer(x))
 
-    def forward(self, x : torch.Tensor, adj : torch_sparse.SparseTensor, mask) -> torch.Tensor:
+    def forward(self, x : torch.Tensor, adj : torch_sparse.SparseTensor, mask = None) -> torch.Tensor:
         return torch_sparse.spmm(torch.stack(adj.coo()[:2]), adj.storage.value(), *adj.sparse_sizes(), self.layer(x))
     
     def precise_forward(self, x : torch.Tensor, adj : torch_sparse.SparseTensor, mask) -> torch.Tensor:
@@ -47,7 +47,7 @@ class testGCN():
         self.layers[0].layer.weight.data, self.layers[1].layer.weight.data, self.layers[
         2].layer.weight.data = gnn.input.lin.weight.data, gnn.hidden.lin.weight.data, gnn.output.lin.weight.data
 
-    def forward(self, x, adj, masks):
+    def forward(self, x, adj, masks = None):
         tmp = x
         if masks is None:
             masks = [None] * len(self.layers)
@@ -154,7 +154,7 @@ class GNN(torch.nn.Module):
         Thoroughly tested :) -> TODO: turn the comments into a test
         """
 
-        simplified_ei = get_single_node_adjacency(edge_index, node, 'forward')
+        simplified_ei = graph_utils.get_single_node_adjacency(edge_index, node, 'forward')
         # assert ((edge_index @ h)[node] == (simplified_ei @ h)[node]).all()
         # assert (layer(h, edge_index)[node] == layer(h, simplified_ei)[node]).all()
         # assert (self.roh(layer, gamma)(h, edge_index)[node] == self.roh(layer, gamma)(h, simplified_ei)[node]).all()
@@ -404,247 +404,6 @@ def train(batchsize, train_set, x, adj, optimizer, gnn, nn):
 
     return sum(total_loss) / num_sample
 
-
-def explains(test_set, gnn, mlp, adj, x, edge_index,walks, validation_plot=False, prunning=True, masking=False,
-             similarity=False,
-             plot=True, relevances=False,
-             remove_connections= False):
-    src, tar = test_set["source_node"], test_set["target_node"]
-    # forward passes
-    mid = gnn(x, edge_index)  # features, edgeindex
-    pos_pred = mlp(mid[src], mid[tar])
-
-    samples = [5, 47 , 53, 5, 188, 105]
-    structure = None
-    random = False
-    val_mul = []
-    score = 0
-    e = 0.0
-    gammas = [0.0]  # [0.0, 0.02,0.0,0.02]
-    gamma = 0.02
-    z = copy.deepcopy(x)
-
-    for gamma in gammas:
-        if validation_plot: val = []
-        for i in samples:
-            # print(src[i], tar[i])
-
-            p = []
-            tmp = adj.clone()
-            if remove_connections:
-                tmp[src[i], tar[i]] = 0
-                tmp[tar[i], src[i]] = 0
-            walks = utils_func.walks(tmp, src[i], tar[i])
-
-            r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i], gamma=gamma, epsilon=e)
-            node_exp = gnn.lrp_node(x, edge_index, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
-
-            if relevances: plots.layers_sum(walks, gnn, r_src, r_tar, tar[i], x, edge_index, pos_pred[i])
-            _tmp = edge_index.clone()
-            if remove_connections:
-                tmp = edge_index.to_dense()
-            for walk in walks:
-                if prunning:
-                    if remove_connections:
-                        _store_tmp = (tmp[src[i], tar[i]], tmp[tar[i], src[i]])
-                        tmp[src[i], tar[i]] = 0
-                        tmp[tar[i], src[i]] = 0
-                        _tmp = torch_sparse.to_torch_sparse(tmp.nonzero().T, tmp[tmp.nonzero(as_tuple=True)].flatten(), tmp.shape[0], tmp.shape[1]).coalesce()
-                        tmp[src[i], tar[i]], tmp[tar[i], src[i]] = _store_tmp
-                    p.append(gnn.lrp(x, _tmp, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)[-1])
-
-
-                if masking:
-                    utils_func.masking(gnn, mlp, z, src[i], tar[i], edge_index, adj, walk, gamma=gamma)
-            if validation_plot:
-                if random:
-                    p = validation.validation_random(walks, (r_src.detach().sum() + r_tar.detach().sum()))
-                val.append(validation.validation_results(gnn, mlp, x, edge_index, walks, p, src[i], tar[i],
-                                                         pruning=True, activaton=False))
-            if similarity: score += utils_func.similarity(walks, p, x, tar[i], "max")
-
-            if plot:
-                walks.append([src[i].numpy(), src[i].numpy(), src[i].numpy(), tar[i].numpy()])
-                structure = plots.plot_explain(p, src[i], tar[i], walks, "pos", gamma, structure, use_structure= False)
-                #plots.plt_node_lrp(node_exp,  src[i], tar[i], walks)
-
-        if gamma == 0.02: e = 0.2
-
-        if validation_plot and average:
-            val_mul.append(validation.validation_avg_plot(val, 57))
-    if validation_plot and average:
-        validation.validation_multiplot(val_mul[0], val_mul[1], val_mul[2], val_mul[3])
-        validation.sumUnderCurve(val_mul[0], val_mul[2], val_mul[1], val_mul[3])
-    if similarity:
-        score /= len(samples)
-        print("similarity score is:", score)
-
-
-def refactored_explains(test_set, gnn, mlp, adj, x, edge_index,
-             similarity=False,
-             plot=True, relevances=False,
-             remove_connections= False,
-             **kwargs,
-             ):
-
-    src, tar = test_set["source_node"], test_set["target_node"]
-    # forward passes
-    mid = gnn(x, edge_index)  # features, edgeindex
-    pos_pred = mlp(mid[src], mid[tar])
-
-    sample_criterion = "indirect connections"
-    samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "", save = "indirect_connections_remove_src_tar.pkl")
-    # samples = [5]#, 47 , 53, 5, 188, 105]
-    # new_samples = 94
-
-    score = 0
-    e = 0.0
-    gammas = [0.0]  # [0.0, 0.02,0.0,0.02]
-    gamma = 0.02
-    z = copy.deepcopy(x)
-
-    for gamma in gammas:
-        for i in tqdm(samples, desc= f"Good samples according to: {sample_criterion}-criterion"):
-            structure = None
-            p = []
-            walks, special_walks_indexes = samples[i]
-            if len(walks) > 100: continue
-            if remove_connections:
-                indexes = find_index_of_connection(edge_index, src[i], tar[i])
-                tmp_ei = remove_connection_at_index(edge_index.clone(), indexes)
-            else: tmp_ei = edge_index
-
-            r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i], gamma=gamma, epsilon=e)
-            # node_exp = gnn.lrp_node(x, tmp_ei, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
-
-            if relevances: plots.layers_sum(walks, gnn, r_src, r_tar, tar[i], x, tmp_ei, pos_pred[i])
-            for walk in tqdm(walks, desc= "Walks in sample"):
-                _rel = gnn.refactored_lrp_loop(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
-                # _old_rel = gnn.lrp(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
-                p.append(_rel[-1])
-                # if _rel != _old_rel:
-                #     lrp_locals= gnn.lrp_return_locals(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
-                #     gnn.refactored_lrp_loop(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e, lrp_locals= lrp_locals)
-
-
-            if similarity: score += utils_func.similarity(walks, p, x, tar[i], "max")
-
-            if plot:
-                walks.append([src[i].numpy(), src[i].numpy(), src[i].numpy(), tar[i].numpy()])
-                fig, axs = plt.subplots(1, 2, figsize=(12,6))
-                axs : List[plt.Axes]
-                structure = plots.refactored_plot_explain(p, src[i], tar[i], walks, "pos", gamma, structure, use_structure= True, ax= axs[0])
-                special_idx_p = [_p if j in special_walks_indexes else np.array(0) for j,_p in enumerate(p)]
-                plots.refactored_plot_explain(special_idx_p, src[i], tar[i], walks, "pos", gamma, structure, use_structure= True, ax= axs[1])
-                axs[0].set_title(f"max: {max(p):.3f} - min: {min(p):.3f}")
-                axs[1].set_title(f"max: {(max(special_idx_p)*100)/max(p):2.3f}% - min: {(min(special_idx_p)*100)/min(p):2.3f}%")
-                axs[1].legend().remove()
-                plt.show()
-                #plots.plt_node_lrp(node_exp,  src[i], tar[i], walks)
-
-    if similarity:
-        print("similarity score is:", torch.mean(score))
-
-def find_good_samples(adj : torch_sparse.SparseTensor, subset : Dict[str, Union[torch.Tensor, List[torch.Tensor]]], criterion : Literal['indirect connections'] = None, remove_connection : bool = True, load : str = "", save : bool = False, **kwargs) -> Dict[int, List[List[int]]]:
-    """
-    Finds good samples to analyze based on a given criterion
-
-    @param: load: If load is not an empty string, try "torch.load(load)". If it fails continue with criterion
-    @param: save: If True, then store a pickle file with the computed walks
-    """
-    if load != "":
-        try:
-            with open(load, "rb") as f:
-                return pickle.load(f)
-        except FileNotFoundError as err:
-            print(f"Loadig from {load} failed")
-            print(err)
-            print(f"Continuing with criterion: {criterion}")
-    if criterion is None: return [5, 47 , 53, 5, 188, 105]
-    if criterion == "indirect connections":
-        out = _find_samples_with_indirect_connections(adj, subset, remove_connection)
-
-    if save:
-        if type(save) is str:
-            save_path = save
-        else:
-            save_path = f"walks with {criterion}.pkl"
-        with open(save_path, "wb") as f:
-            pickle.dump(out, f)
-    return out
-    
-def _find_samples_with_indirect_connections(adj : torch_sparse.SparseTensor, subset : Dict[str, torch.Tensor], remove_connection : bool = True) -> Dict[int, List[List[int]]]:
-    out = {}
-    for i, (src, tar, neg_tar) in tqdm(enumerate(zip(*subset.values())), desc= "Alternative connections between src and tar", total= len(subset["source_node"])):
-        if remove_connection:
-            _adj = remove_connection_at_index(adj, find_index_of_connection(adj, src, tar))
-        else: _adj = adj
-        walks = utils_func.walks(_adj, src, tar)
-        indirect_connection_walks = [int(i) for i,w in enumerate(walks) if src.item() in w and tar.item() in w]
-        if len(indirect_connection_walks) > 0:
-            out[i] = [walks, indirect_connection_walks]
-    return out
-
-def find_index_of_connection(sparse_tensor : torch_sparse.SparseTensor, src : int, tar : int) -> torch.Tensor:
-    """
-    Finds the index in the sparse storage for a given connection, returns the indexes in a Tensor
-    """
-    rows = sparse_tensor.storage.row()
-    cols = sparse_tensor.storage.col()
-    _rows = torch.where(rows == tar)[0]
-    _cols = torch.where(cols == src)[0]
-    _rows_t = torch.where(rows == src)[0]
-    _cols_t = torch.where(cols == tar)[0]
-    idx = ainb.ainb(_rows, _cols)
-    idx_t = ainb.ainb(_rows_t, _cols_t)
-    assert idx.sum() <= 1 and idx_t.sum() <= 1, "Should find one match at most" # In the case of repeated indexes we are most likely seeing a runtime error
-    remove_indexes = []
-    if idx.sum(): remove_indexes.append(_rows[idx])
-    if idx_t.sum(): remove_indexes.append(_rows_t[idx_t])
-    remove_indexes.sort()
-    assert torch.tensor(
-        [[rang[r_idx] in [src, tar] for r_idx in remove_indexes] for rang in [rows, cols]]
-        ).all() #  Checks that the indexes to be removed actually correspond to src and target
-    
-    return remove_indexes
-
-def _find_index_of_neighbours(sparse_tensor : torch_sparse.SparseTensor, node : Union[int, torch.Tensor], direction : Literal['forward', 'backward'] = 'backward') -> torch.Tensor:
-    prev_node, next_node = sparse_tensor.storage.row(), sparse_tensor.storage.col()
-
-    if direction == "forward":    
-        return torch.where(prev_node == node)[0]
-    elif direction == "backward":
-        return torch.where(next_node == node)[0]
-    else:
-        raise ValueError("Direction not recognized")
-
-def get_single_node_adjacency(sparse_tensor : torch_sparse.SparseTensor, node : Union[int, torch.Tensor], direction : Literal['forward', 'backward'] = 'backward') -> torch_sparse.SparseTensor:
-    rows, cols, val = sparse_tensor.coo()
-
-    if direction == "forward":    
-         idx = _find_index_of_neighbours(sparse_tensor, node, 'forward')
-    elif direction == "backward":
-        idx = _find_index_of_neighbours(sparse_tensor, node, 'backward')
-    else:
-        raise ValueError("Direction not recognized")
-    
-    return torch_sparse.SparseTensor(row= rows[idx], col= cols[idx], value= val[idx], sparse_sizes=sparse_tensor.storage.sparse_sizes())
-
-def remove_connection_at_index(sparse_tensor : torch_sparse.SparseTensor, indexes : list) -> torch_sparse.SparseTensor:
-    """
-    Removes the connection at the indexes in the sparse storage, returns a new SparseTensor without the connections
-    """
-    if not len(indexes) > 0: return sparse_tensor # If connection is already missing just return same tensor
-    new_row, new_col, new_value = [
-        torch.cat([inner_tensor[i+1: j] for i,j in zip([-1] + indexes[:-1], indexes)]) # Adding -1 at the beginning of the indexes means start from index 0
-        for inner_tensor in [
-                            sparse_tensor.storage.row(),
-                            sparse_tensor.storage.col(),
-                            sparse_tensor.storage.value()
-                            ]
-    ]
-    return torch_sparse.SparseTensor(new_row, None, new_col, new_value, sparse_tensor.sizes())
-
 @torch.no_grad()
 def test(batchsize, data_set, x, adj, evaluator, gnn, nn, accuracy=False):
     tmp = data_set["source_node"].shape[0]
@@ -745,8 +504,8 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
                                       ["Valid MRR", "Test MRR", "Trainings Error"], 'Model Error',
                                       file_name="GNN" + "performance")
                 if explain:
-                    refactored_explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, remove_connections= True)
-                    explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, False, remove_connections= True)
+                    XAI.refactored_explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, remove_connections= True)
+                    XAI.explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, False, remove_connections= True)
 
                     XAI.get_explanations(data,explain_data,exp_adj,valid_set,t_GCN, gnn, nn,)
 
