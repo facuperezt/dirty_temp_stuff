@@ -9,6 +9,8 @@ from torch_geometric.nn import GCNConv
 import torch_geometric
 import scipy.sparse as ssp
 import pandas as pd
+
+import XAI
 import dataLoader
 from utils import validation, utils_func, utils, ainb
 from plots import plots
@@ -651,9 +653,10 @@ def test(batchsize, data_set, x, adj, evaluator, gnn, nn, accuracy=False):
 
     pos_preds, neg_preds = [], []
     #graph_rep = gnn(x, adj)
-    graph_rep = gnn.forward(x, adj, masks=None)
+    graph_rep = gnn.forward(x, adj)
     for i in range(0, src.shape[0], batchsize):
         idx = permutation[i:i + batchsize]
+
         src_tmp = src[idx]
         tar_tmp = tar[idx]
         tar_neg_tmp = tar_neg[idx]
@@ -690,7 +693,6 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
     data = dataset.load()
     split = dataset.get_edge_split()
     train_set, valid_set, test_set = split["train"], split["valid"], split["test"]
-
     tmp = data.adj_t.set_diag()
     deg = tmp.sum(dim=0).pow(-0.5)
     deg[deg == float('inf')] = 0
@@ -746,36 +748,9 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
                     refactored_explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, remove_connections= True)
                     explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, False, remove_connections= True)
 
-                    # This generates a subgraph
-                    # passable size for entries 47,188,105, 8, 10
-                    src, tar = int(valid_set["source_node"][5]), int(valid_set["target_node"][5])
-                    adj = data.adj_t.to_dense()
-                    adj[tar,src]= 1
-                    subgraph = utils_func.get_subgraph(torch_sparse.SparseTensor.from_dense(exp_adj), src, tar, 3)
+                    XAI.get_explanations(data,explain_data,exp_adj,valid_set,t_GCN, gnn, nn,)
 
-                    # to do add the predicted edge back in
-                    x_new, subgraph, edge, mapping = utils_func.reindex(subgraph, data.x, (src, tar))
-                    tmp = torch_geometric.utils.to_dense_adj(subgraph).squeeze()
-                    subgraph = torch_geometric.utils.to_dense_adj(
-                        subgraph).squeeze()
-                    #print(subgraph[44,116], subgraph[116,44])
-                    #print(torch_sparse.SparseTensor.from_dense(subgraph))
 
-                    explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, False)
-                    walks = utils_func.walks(subgraph,edge[0],edge[1])
-                    nodes = list(set([x[-1] for x in walks]))
-                    mask = torch.zeros(subgraph.shape)
-                    for i in nodes:
-                        mask[i,i] = 1
-                    walks = utils_func.map_walks(walks, mapping)
-                    print(type(walks[0][0]))
-                    z = gnnexplainer(subgraph.T, t_GCN, nn, edge, x_new,mask)
-                    plots.plt_gnnexp(z,edge[0],edge[1], walks,mapping)
-
-                    z = CAM(subgraph.T,gnn,x_new)
-                    #z = get_top_edges_edge_ig(gnn,nn,x_new,subgraph,edge)
-                    #print(torch_sparse.SparseTensor.from_dense(z))
-                    plots.plot_cam(z,edge[0],edge[1],walks,mapping)
 
         average[run, 0] = valid_mrr[-1]
         average[run, 1] = test_mrr[-1]
