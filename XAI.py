@@ -164,7 +164,7 @@ def refactored_explains(
     pos_pred = mlp(mid[src], mid[tar])
 
     sample_criterion = "indirect connections"
-    samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "indirect_connections_remove_src_tar.pkl", save = "")
+    samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "", save = "")
     # samples = [5]#, 47 , 53, 5, 188, 105]
     # new_samples = 94
 
