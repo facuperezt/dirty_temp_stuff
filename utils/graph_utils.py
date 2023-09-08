@@ -39,7 +39,7 @@ def _find_samples_with_indirect_connections(adj : torch_sparse.SparseTensor, sub
         if remove_connection:
             _adj = remove_connection_at_index(adj, find_index_of_connection(adj, src, tar))
         else: _adj = adj
-        walks = utils_func.walks(_adj.to_dense(), src, tar)
+        walks = utils_func.walks(_adj, src, tar)
         indirect_connection_walks = [int(i) for i,w in enumerate(walks) if src.item() in w and tar.item() in w]
         if len(indirect_connection_walks) > 0:
             out[i] = [walks, indirect_connection_walks]
