@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import torch.nn.functional as F
 import torch
 import torch_geometric.transforms as T
@@ -14,7 +15,7 @@ import itertools
 from plots import plots
 from encoderDecoder import GNN, NN
 from utils.graph_utils import find_index_of_connection, remove_connection_at_index, find_good_samples
-from typing import Dict
+from typing import Dict, List
 
 
 
@@ -152,6 +153,8 @@ def refactored_explains(
         plot : bool = True,
         relevances : bool = False,
         remove_connections : bool = False,
+        gammas : List[float] = [0.0, 0.03, 0.1],
+        epsilons : List[float] = [0.0, 1e-9],
         **kwargs,
         ):
 
@@ -161,49 +164,96 @@ def refactored_explains(
     pos_pred = mlp(mid[src], mid[tar])
 
     sample_criterion = "indirect connections"
-    samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "", save = "indirect_connections_remove_src_tar.pkl")
+    samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "indirect_connections_remove_src_tar.pkl", save = "")
     # samples = [5]#, 47 , 53, 5, 188, 105]
     # new_samples = 94
 
     score = 0
-    e = 0.0
-    gammas = [0.0]  # [0.0, 0.02,0.0,0.02]
-    gamma = 0.02
-    z = copy.deepcopy(x)
+    for epsilon in epsilons:
+        for gamma in gammas:
+            for i in tqdm(samples, desc= f"Good samples according to: {sample_criterion}-criterion"):
+                p = []
+                structure = None
+                walks, special_walks_indexes = samples[i]
+                if len(walks) > 100: continue
+                if remove_connections:
+                    indexes = find_index_of_connection(edge_index, src[i], tar[i])
+                    tmp_ei = remove_connection_at_index(edge_index.clone(), indexes)
+                else: tmp_ei = edge_index
 
-    for gamma in gammas:
-        for i in tqdm(samples, desc= f"Good samples according to: {sample_criterion}-criterion"):
-            p = []
-            structure = None
-            walks, special_walks_indexes = samples[i]
-            if len(walks) > 100: continue
-            if remove_connections:
-                indexes = find_index_of_connection(edge_index, src[i], tar[i])
-                tmp_ei = remove_connection_at_index(edge_index.clone(), indexes)
-            else: tmp_ei = edge_index
+                r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i], gamma=gamma, epsilon=epsilon)
+                # node_exp = gnn.lrp_node(x, tmp_ei, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
 
-            r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i], gamma=gamma, epsilon=e)
-            # node_exp = gnn.lrp_node(x, tmp_ei, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
-
-            if relevances: plots.layers_sum(walks, gnn, r_src, r_tar, tar[i], x, tmp_ei, pos_pred[i])
-            for walk in tqdm(walks, desc= "Walks in sample"):
-                _rel = gnn.refactored_lrp_loop(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
-                # _old_rel = gnn.lrp(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
-                p.append(_rel[-1])
-                # if _rel != _old_rel:
-                #     lrp_locals= gnn.lrp_return_locals(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
-                #     gnn.refactored_lrp_loop(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e, lrp_locals= lrp_locals)
+                if relevances: plots.layers_sum(walks, gnn, r_src, r_tar, tar[i], x, tmp_ei, pos_pred[i])
+                for walk in tqdm(walks, desc= "Walks in sample"):
+                    _rel = gnn.refactored_lrp_loop(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=epsilon)
+                    # _old_rel = gnn.lrp(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
+                    p.append(_rel[-1])
+                    # if _rel != _old_rel:
+                    #     lrp_locals= gnn.lrp_return_locals(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e)
+                    #     gnn.refactored_lrp_loop(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=e, lrp_locals= lrp_locals)
 
 
-            if similarity: score += utils_func.similarity(walks, p, x, tar[i], "max")
+                if similarity: score += utils_func.similarity(walks, p, x, tar[i], "max")
 
-            if plot:
-                walks.append([src[i].numpy(), src[i].numpy(), src[i].numpy(), tar[i].numpy()])
-                structure = plots.side_by_side_plot(p, special_walks_indexes, src[i], tar[i], walks, gamma, structure)
-                #plots.plt_node_lrp(node_exp,  src[i], tar[i], walks)
-
+                if plot:
+                    plots.plot_explanations_modular(edge_index, [p], src[i], tar[i], walks, gamma, epsilon)
+                    # walks.append([src[i].numpy(), src[i].numpy(), src[i].numpy(), tar[i].numpy()])
+                    structure = plots.side_by_side_plot(p, special_walks_indexes, src[i], tar[i], walks, gamma, structure)
+                    #plots.plt_node_lrp(node_exp,  src[i], tar[i], walks)
+                
     if similarity:
         print("similarity score is:", torch.mean(score))
+
+
+def explain_all_walks(
+        test_set : Dict[str, torch.Tensor],
+        gnn : GNN,
+        mlp : NN,
+        adj : object, # only for compatibility with ronja
+        x : torch.Tensor,
+        edge_index : torch_sparse.SparseTensor,
+        similarity : bool = False,
+        plot : bool = True,
+        relevances : bool = False,
+        remove_connections : bool = False,
+        gammas : List[float] = [0.0, 0.03, 0.1],
+        epsilons : List[float] = [0.0, 1e-9],
+        **kwargs,
+        ):
+    src, tar = test_set["source_node"], test_set["target_node"]
+    mid = gnn(x, edge_index)  # features, edgeindex
+    pos_pred = mlp(mid[src], mid[tar])
+
+    sample_criterion = "indirect connections"
+    samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "", save = "")
+    out = {}
+    for epsilon in epsilons:
+        out[epsilon] = {}
+        for gamma in gammas:
+            all_walks_indices = []
+            all_walks_relevances = []
+            for i in tqdm(samples, desc= f"Good samples according to: {sample_criterion}-criterion"):
+                p = []
+                walks, special_walks_indexes = samples[i]
+                if remove_connections:
+                    indexes = find_index_of_connection(edge_index, src[i], tar[i])
+                    tmp_ei = remove_connection_at_index(edge_index.clone(), indexes)
+                else: tmp_ei = edge_index
+
+                r_src, r_tar = mlp.lrp(mid[src[i]], mid[tar[i]], pos_pred[i], gamma=gamma, epsilon=epsilon)
+
+                for walk in tqdm(walks, desc= "Walks in sample"):
+                    p.append(gnn.refactored_lrp_loop(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=epsilon)[-1])
+                
+                walks_indices = torch.tensor(walks).view(4, -1)
+                all_walks_indices.append(walks_indices)
+                all_walks_relevances.extend(p)
+            all_walks_indices = torch.cat(all_walks_indices, dim= 1)
+            out[epsilon][gamma] = torch.sparse_coo_tensor(all_walks_indices, [a.item() for a in all_walks_relevances], size = all_walks_indices.shape[0]*[edge_index.sparse_sizes()[0]])
+    return out
+
+
 
 
 def explains(gnn, mlp, adj, x, edge_index,src,tar,walks, validation_plot=False, prunning=True, masking=False,

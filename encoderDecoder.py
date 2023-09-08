@@ -461,8 +461,10 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
     # initilaization models
     gnn, nn = GNN(), NN()
     if load:
-        gnn.load_state_dict(torch.load("models/gnn_2100_50_0015"))
-        nn.load_state_dict(torch.load("models/nn_2100_50_0015"))
+        # gnn.load_state_dict(torch.load("models/gnn_2100_50_0015"))
+        # nn.load_state_dict(torch.load("models/nn_2100_50_0015"))
+        gnn.load_state_dict(torch.load("models/gnn_new"))
+        nn.load_state_dict(torch.load("models/nn_new"))
     gnn.to(device), nn.to(device), data.to(device)
     t_GCN = testGCN(gnn)
     optimizer = torch.optim.Adam(list(gnn.parameters()) + list(nn.parameters()), lr=0.0005)
@@ -482,13 +484,13 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
     for run in range(runs):
         valid_mrr, test_mrr, loss = torch.zeros((epochs, 1)), torch.zeros((epochs, 1)), torch.zeros((epochs, 1))
         best = 0
-        for i in range(0, epochs):
+        for i in tqdm(range(epochs), desc= "Epoch: "):
             if train_model:
                 loss[i] = train(batchsize, train_set, data.x, data.adj_t, optimizer, gnn, nn).detach()
             #valid_mrr[i] = test(batchsize, valid_set, data.x, data.adj_t, evaluator, gnn, nn)
             #test_mrr[i] = test(batchsize, test_set, data.x, data.adj_t, evaluator, gnn, nn)
-            valid_mrr[i] = test(batchsize, valid_set, data.x, data.adj_t, evaluator, t_GCN, nn)
-            test_mrr[i] = test(batchsize, test_set, data.x, data.adj_t, evaluator, t_GCN, nn)
+            # valid_mrr[i] = test(batchsize, valid_set, data.x, data.adj_t, evaluator, t_GCN, nn)
+            # test_mrr[i] = test(batchsize, test_set, data.x, data.adj_t, evaluator, t_GCN, nn)
 
             if valid_mrr[i] > best and save:
                 best = valid_mrr[i]
@@ -497,16 +499,18 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
 
             if i == epochs - 1:
                 if save:
-                    torch.save(tmp_gnn, "models/gnn_None_50_001_new")
-                    torch.save(tmp_nn, "models/nn_None_50_001_new")
+                    # torch.save(tmp_gnn, "models/gnn_None_50_001_new")
+                    # torch.save(tmp_nn, "models/nn_None_50_001_new")
+                    torch.save(tmp_gnn, "models/gnn_new")
+                    torch.save(tmp_nn, "models/nn_new")
                 if plot:
                     plots.plot_curves(epochs, [valid_mrr, test_mrr, loss],
                                       ["Valid MRR", "Test MRR", "Trainings Error"], 'Model Error',
                                       file_name="GNN" + "performance")
                 if explain:
+                    # XAI.explain_all_walks(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, remove_connections= True)
                     XAI.refactored_explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, remove_connections= True)
-                    XAI.explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, False, remove_connections= True)
-
+                    XAI.explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, False)
                     XAI.get_explanations(data,explain_data,exp_adj,valid_set,t_GCN, gnn, nn,)
 
 
@@ -567,4 +571,13 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
 #%%
 if __name__ == "__main__":
     # main(None, 100, True, False, True, False, 1, False)
-    main()
+    main(
+        batchsize=None,
+        epochs= 1,
+        explain= True,
+        save= False,
+        train_model= False,
+        load= True,
+        runs= 1,
+        plot= False,
+    )

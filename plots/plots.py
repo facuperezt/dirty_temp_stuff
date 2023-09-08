@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
-import matplotlib.patches as patches
 import igraph
 import torch
 import torch_geometric.utils
@@ -9,7 +8,9 @@ from openTSNE import TSNE
 import scipy.sparse as ssp
 from utils import utils_func, utils
 from itertools import groupby
-from typing import List
+from typing import Dict, List
+import torch_sparse
+from matplotlib import patches, lines
 
 def node_plt(walks, gnn, r_src, r_tar, tar, x, edge_index, pred):
     pass
@@ -248,6 +249,156 @@ def side_by_side_plot(p, special_walks_indexes, src, tar, walks, gamma, structur
     plt.show()
     return structure
 
+def get_edge_index_of_subgraph(full_edge_index : np.ndarray, subgraph : np.ndarray) -> torch.Tensor:
+    """
+    Gets the edge index of a graph and a subgraph and returns the edge index of the subgraph
+    """
+    edge_index = full_edge_index.transpose()
+    edge_index = edge_index[np.isin(edge_index[:, 0], subgraph) & np.isin(edge_index[:, 1], subgraph)]
+    return torch.tensor(edge_index.transpose())    
+
+def get_graph(adjacency_matrix : torch_sparse.SparseTensor, subgraph : np.ndarray, src : np.ndarray, tar : np.ndarray) -> igraph.Graph:
+    """
+    Gets the adjacency matrix of a graph and a subgraph and returns the adjacency matrix of the subgraph
+
+    @param : adjacency_matrix : torch_sparse.SparseTensor, the adjacency matrix of the graph
+    @param : subgraph : torch.Tensor, the nodes contanied in the subgraph
+    """
+    graph : igraph.Graph = igraph.Graph()
+    vertex_names = []
+    is_src = []
+    is_tar = []
+    for vertex in subgraph:
+        vertex_names.append(str(vertex))
+        is_src.append(True if vertex == src else False)
+        is_tar.append(True if vertex == tar else False)
+    graph.add_vertices(vertex_names, {'is_src' : is_src, 'is_tar' : is_tar})
+
+    edge_index_transposed = get_edge_index_of_subgraph(np.stack(adjacency_matrix.coo()[:2]), subgraph).t().tolist()
+    graph.add_edges(
+        es= [[str(edge[1]), str(edge[0])] for edge in edge_index_transposed],
+        attributes= {'src_to_tar' : [True if edge[1] == src.item() and edge[0] == tar.item()
+                                     else False for edge in edge_index_transposed]},
+        )
+    return graph
+
+def customize_graph(graph : igraph.Graph, src : str, tar : str) -> igraph.Graph:
+    # Define the style of the vertices
+    color = {src : "yellowgreen", tar : "gold"}
+    graph.vs["color"] = [color.get(vertex, "gray") for vertex in graph.vs["name"]]
+    size = {src : 0.15, tar : 0.15}
+    graph.vs["size"] = [size.get(vertex, 0.1) for vertex in graph.vs["name"]]
+    graph.vs["frame_width"] = 0
+
+    # Define the style of the edges
+    graph.es["width"] = [0.2 if src_to_tar else 0.1 for src_to_tar in graph.es["src_to_tar"]]
+    graph.es["color"] = ["green" if src_to_tar else "gray" for src_to_tar in graph.es["src_to_tar"]]
+   
+    # Define miscelaneous style of graph plot
+    visual_style = {}
+
+    return graph, visual_style
+
+def get_alpha(x, r_max, r_min = 0, new_max = 1, new_min = 0.1):
+    alpha = new_min + ((new_max - new_min)/(r_max - r_min))*(x - r_min)
+    if 100*x/r_max < 0.01: # if the relevance is smaller than 0.01% of the max relevance for the subgraph, set it to zero.
+        alpha = 0
+    return alpha
+
+def plot_graph(graph, visual_style, walks, rel, ax, gamma, epsilon, noise = True, layout_dict : Dict[str, object] = None):
+    if layout_dict is None:
+        layout_dict = {
+            'layout' : "kk",
+        }
+    max_abs = np.abs(rel).max()
+    igraph.plot(graph, **visual_style, target= ax)
+    for walk, r in zip(walks[:-1], rel):
+        points = get_walk_points(graph.layout(**layout_dict), graph.vs["name"], [str(node) for node in walk])
+        alpha = get_alpha(np.abs(r), max_abs, new_min = 0.1)
+        plot_walk_trace(points, ax, r, alpha, noise= noise)
+
+def plot_graph_sum(graph, visual_style, walks, rel, ax, gamma, epsilon):
+    max_abs = np.abs(rel).max()
+    igraph.plot(graph, **visual_style, target= ax)
+    cummulative_walks = {}
+    hashify = lambda x: tuple(tuple(y) for y in x) # Make list of lists hashable
+    for walk, r in zip(walks[:-1], rel):
+        points = get_walk_points(graph.layout("kk"), graph.vs["name"], [str(node) for node in walk])
+        cummulative_walks[hashify(points)] = cummulative_walks.get(hashify(points), 0) + r
+    for points, r in cummulative_walks.items():
+        alpha = get_alpha(np.abs(r), max_abs, new_min = 0.1)
+        plot_walk_trace(points, ax, r, alpha, noise= False)
+
+
+def plot_explanations_modular(
+        adjacency_matrix : torch_sparse.SparseTensor,
+        explanations : List[List[np.ndarray]],
+        src : torch.Tensor,
+        tar : torch.Tensor,
+        walks : List[List[int]],
+        gamma : float = 0.0,
+        epsilon : float = 0.0,
+        ):
+    """
+    Every tensor of relevances contained in explanations explains the same subgraph
+    """
+    
+    subgraph = np.unique(np.asarray(walks).flatten())
+    graph = get_graph(adjacency_matrix, subgraph, np.asarray(src), np.asarray(tar))
+    fig, axs = plt.subplots(len(explanations), 2, figsize=(10, 6*len(explanations)))
+    axs = axs.reshape(2, -1).transpose()
+    # fig.suptitle(f"Explanations for the walks from {src} to {tar} - gamma: {gamma} - epsilon: {epsilon}")
+    for rel_explanation, ax in zip(explanations, axs):
+        ax : List[plt.Axes]
+        graph, visual_style = customize_graph(graph, str(src.item()), str(tar.item()))
+        plot_graph(graph, visual_style, walks, rel_explanation, ax[0], gamma, epsilon)
+        # ax[0].set_title(f"Explanation with slight shift")
+        plot_graph_sum(graph, visual_style, walks, rel_explanation, ax[1], gamma, epsilon)
+        # ax[1].set_title(f"Explanation with cummulative sum")
+    axs[0][0].legend(
+            handles= [
+                lines.Line2D([], [], color='yellowgreen', linewidth= 0, marker= 'o', label= 'Source Node'),
+                lines.Line2D([], [], color='gold', linewidth= 0, marker= 'o', label= 'Target Node'),
+                lines.Line2D([], [], color='blue', linewidth= 1, label='Negative relevance'),
+                lines.Line2D([], [], color='red', linewidth= 1, label='Positive relevance'),
+                ],
+            loc = 'upper left',
+            bbox_to_anchor= (-0.3, 1.3)
+            )
+
+    return graph    
+
+def set_ax_legend(ax : plt.Axes, loc= 'upper left', bbox_to_anchor= (-0.3, 1.3), **kwargs) -> None:
+    ax.legend(
+            handles= [
+                lines.Line2D([], [], color='yellowgreen', linewidth= 0, marker= 'o', label= 'Source Node'),
+                lines.Line2D([], [], color='gold', linewidth= 0, marker= 'o', label= 'Target Node'),
+                lines.Line2D([], [], color='blue', linewidth= 1, label='Negative relevance'),
+                lines.Line2D([], [], color='red', linewidth= 1, label='Positive relevance'),
+                ],
+            loc = loc,
+            bbox_to_anchor= bbox_to_anchor,
+            **kwargs
+            )
+    
+def plot_explain_no_circles(
+        adjacency_matrix : torch_sparse.SparseTensor,
+        relevances : List[np.ndarray],
+        src : torch.Tensor,
+        tar : torch.Tensor,
+        walks : List[List[int]],
+        ax : plt.Axes,
+        gamma : float = 0.0,
+        epsilon : float = 0.0,
+        set_legend : bool = False,
+        **kwargs,
+        ) -> None: 
+    subgraph = np.unique(np.asarray(walks).flatten())
+    graph = get_graph(adjacency_matrix, subgraph, np.asarray(src), np.asarray(tar))
+    graph, visual_style = customize_graph(graph, str(src.item()), str(tar.item()))
+    plot_graph(graph, visual_style, walks, relevances, ax, gamma, epsilon, noise= True)
+    if set_legend:
+        set_ax_legend(ax, **kwargs)
 
 def refactored_plot_explain(relevances, src, tar, walks, pos, gamma, structure= None, use_structure= False, ax= None):
     if structure is None or use_structure is False:
@@ -352,7 +503,7 @@ def get_walk_points(place, nodes, walk):
     trace_points = [key for key, _group in groupby(walk)]
     return [place[nodes.index(point)] for point in trace_points]
 
-def plot_walk_trace(points, ax, rel, alpha):
+def plot_walk_trace(points : List[List[float]], ax : plt.Axes, rel : float, alpha : float, noise : bool = True) -> None:
     if len(points) < 2: return
     if len(points) == 2:
         codes = [
@@ -372,6 +523,9 @@ def plot_walk_trace(points, ax, rel, alpha):
             Path.CURVE4,
             Path.CURVE4,
         ]
+    if noise:
+        noise = np.random.normal(0, 0.033, size=(len(points), len(points[0])))
+        points = np.asarray(points) + noise
     path = Path(points, codes)
     color = 'indianred' if np.sign(rel) > 0 else 'slateblue'
     patch = patches.PathPatch(path, edgecolor= color, alpha= 0 if np.isnan(alpha) else alpha, facecolor='none', lw=2)

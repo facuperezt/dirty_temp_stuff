@@ -69,14 +69,18 @@ def find_index_of_connection(sparse_tensor : torch_sparse.SparseTensor, src : in
     return remove_indexes
 
 def _find_index_of_neighbours(sparse_tensor : torch_sparse.SparseTensor, node : Union[int, torch.Tensor], direction : Literal['forward', 'backward'] = 'backward') -> torch.Tensor:
-    prev_node, next_node = sparse_tensor.storage.row(), sparse_tensor.storage.col()
+    prev_node, next_node, val = sparse_tensor.coo()
 
     if direction == "forward":    
-        return torch.where(prev_node == node)[0]
+        inds = torch.where(prev_node == node)[0]
     elif direction == "backward":
-        return torch.where(next_node == node)[0]
+        inds = torch.where(next_node == node)[0]
     else:
         raise ValueError("Direction not recognized")
+    
+    inds = inds[val[inds] != 0] 
+
+    return inds
 
 def get_single_node_adjacency(sparse_tensor : torch_sparse.SparseTensor, node : Union[int, torch.Tensor], direction : Literal['forward', 'backward'] = 'backward') -> torch_sparse.SparseTensor:
     rows, cols, val = sparse_tensor.coo()
@@ -90,13 +94,13 @@ def get_single_node_adjacency(sparse_tensor : torch_sparse.SparseTensor, node : 
     
     return torch_sparse.SparseTensor(row= rows[idx], col= cols[idx], value= val[idx], sparse_sizes=sparse_tensor.storage.sparse_sizes())
 
-def remove_connection_at_index(sparse_tensor : torch_sparse.SparseTensor, indexes : list) -> torch_sparse.SparseTensor:
+def remove_connection_at_index(sparse_tensor : torch_sparse.SparseTensor, indexes : list[int]) -> torch_sparse.SparseTensor:
     """
     Removes the connection at the indexes in the sparse storage, returns a new SparseTensor without the connections
     """
     if not len(indexes) > 0: return sparse_tensor # If connection is already missing just return same tensor
     new_row, new_col, new_value = [
-        torch.cat([inner_tensor[i+1: j] for i,j in zip([-1] + indexes[:-1], indexes)]) # Adding -1 at the beginning of the indexes means start from index 0
+        torch.cat([inner_tensor[i+1: j] for i,j in zip([-1] + indexes, indexes + [None])]) # Adding -1 at the beginning of the indexes means start from index 0
         for inner_tensor in [
                             sparse_tensor.storage.row(),
                             sparse_tensor.storage.col(),
