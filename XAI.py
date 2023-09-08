@@ -227,7 +227,7 @@ def explain_all_walks(
     pos_pred = mlp(mid[src], mid[tar])
 
     sample_criterion = "indirect connections"
-    samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "samples_corrected.pkl", save = "")
+    samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "", save = "samples_corrected.pkl")
     os.makedirs("all_walk_relevances/", exist_ok= True)
     for epsilon in epsilons:
         for gamma in gammas:
