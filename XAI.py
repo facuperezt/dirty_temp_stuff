@@ -236,7 +236,7 @@ def explain_all_walks(
             for i in tqdm(samples, desc= f"Good samples according to: {sample_criterion}-criterion"):
                 p = []
                 walks, special_walks_indexes = samples[i]
-                if len(walks) > 1000: continue
+                if len(walks) > 250: continue
                 if remove_connections:
                     indexes = find_index_of_connection(edge_index, src[i], tar[i])
                     tmp_ei = remove_connection_at_index(edge_index.clone(), indexes)
@@ -247,10 +247,11 @@ def explain_all_walks(
                 for walk in tqdm(walks, desc= "Walks in sample"):
                     p.append(gnn.refactored_lrp_loop(x, tmp_ei, walk, r_src, r_tar, tar[i], gamma=gamma, epsilon=epsilon)[-1])
                 
-                walks_indices = torch.tensor(walks).view(4, -1)
+                non_zero_inds = np.where(np.array(p) != 0)[0].tolist()
+                walks_indices = torch.stack([torch.tensor(_w) for i,_w in enumerate(walks) if i in non_zero_inds]).T
                 all_walks_indices.append(walks_indices)
                 all_walks_relevances.extend(p)
-                out = torch.sparse_coo_tensor(walks_indices, [a.item() for a in p], size = walks_indices.shape[0]*[edge_index.sparse_sizes()[0]])
+                out = torch.sparse_coo_tensor(walks_indices, [a.item() for i,a in enumerate(p) if i in non_zero_inds], size = walks_indices.shape[0]*[edge_index.sparse_sizes()[0]])
                 torch.save(out, f"all_walk_relevances/{src[i].item()}_{tar[i].item()}_{str(gamma).replace('.', ',')}_{str(epsilon).replace('.', ',')}.th")
             all_walks_indices = torch.cat(all_walks_indices, dim= 1)
             out = torch.sparse_coo_tensor(walks_indices, [a.item() for a in all_walks_relevances], size = walks_indices.shape[0]*[edge_index.sparse_sizes()[0]])
