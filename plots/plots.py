@@ -314,6 +314,7 @@ def plot_graph(graph, visual_style, walks, rel, ax, gamma, epsilon, noise = True
     max_abs = np.abs(rel).max()
     igraph.plot(graph, **visual_style, target= ax)
     for walk, r in zip(walks[:-1], rel):
+        if r == 0: continue
         points = get_walk_points(graph.layout(**layout_dict), graph.vs["name"], [str(node) for node in walk])
         alpha = get_alpha(np.abs(r), max_abs, new_min = 0.1)
         plot_walk_trace(points, ax, r, alpha, noise= noise)

@@ -16,6 +16,7 @@ from plots import plots
 from encoderDecoder import GNN, NN
 from utils.graph_utils import find_index_of_connection, remove_connection_at_index, find_good_samples
 from typing import Dict, List
+import os
 
 
 
@@ -226,8 +227,8 @@ def explain_all_walks(
     pos_pred = mlp(mid[src], mid[tar])
 
     sample_criterion = "indirect connections"
-    samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "", save = "")
-    out = {}
+    samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "", save = "samples_corrected.pkl")
+    os.makedirs("all_walk_relevances/", exist_ok= True)
     for epsilon in epsilons:
         out[epsilon] = {}
         for gamma in gammas:
@@ -249,8 +250,12 @@ def explain_all_walks(
                 walks_indices = torch.tensor(walks).view(4, -1)
                 all_walks_indices.append(walks_indices)
                 all_walks_relevances.extend(p)
+                out = torch.sparse_coo_tensor(walks_indices, [a.item() for a in p], size = walks_indices.shape[0]*[edge_index.sparse_sizes()[0]])
+                torch.save(out, f"all_walk_relevances/{src.item()}_{tar.item()}_{str(gamma).replace('.', ',')}_{str(epsilon).replace('.', ',')}.th")
             all_walks_indices = torch.cat(all_walks_indices, dim= 1)
-            out[epsilon][gamma] = torch.sparse_coo_tensor(all_walks_indices, [a.item() for a in all_walks_relevances], size = all_walks_indices.shape[0]*[edge_index.sparse_sizes()[0]])
+            out = torch.sparse_coo_tensor(walks_indices, [a.item() for a in all_walks_relevances], size = walks_indices.shape[0]*[edge_index.sparse_sizes()[0]])
+            torch.save(out, f"all_walk_relevances/all_samples_{str(gamma).replace('.', ',')}_{str(epsilon).replace('.', ',')}.th")
+
     return out
 
 

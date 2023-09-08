@@ -508,10 +508,10 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
                                       ["Valid MRR", "Test MRR", "Trainings Error"], 'Model Error',
                                       file_name="GNN" + "performance")
                 if explain:
-                    # XAI.explain_all_walks(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, remove_connections= True)
-                    XAI.refactored_explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, remove_connections= True)
-                    XAI.explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, False)
-                    XAI.get_explanations(data,explain_data,exp_adj,valid_set,t_GCN, gnn, nn,)
+                    XAI.explain_all_walks(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, remove_connections= True)
+                    # XAI.refactored_explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, remove_connections= True)
+                    # XAI.explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, False)
+                    # XAI.get_explanations(data,explain_data,exp_adj,valid_set,t_GCN, gnn, nn,)
 
 
 
