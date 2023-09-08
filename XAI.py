@@ -236,7 +236,7 @@ def explain_all_walks(
             for i in tqdm(samples, desc= f"Good samples according to: {sample_criterion}-criterion"):
                 p = []
                 walks, special_walks_indexes = samples[i]
-                if len(walks) > 250: continue
+                if len(walks) > 1000: continue
                 if remove_connections:
                     indexes = find_index_of_connection(edge_index, src[i], tar[i])
                     tmp_ei = remove_connection_at_index(edge_index.clone(), indexes)
