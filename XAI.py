@@ -230,7 +230,6 @@ def explain_all_walks(
     samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "", save = "samples_corrected.pkl")
     os.makedirs("all_walk_relevances/", exist_ok= True)
     for epsilon in epsilons:
-        out[epsilon] = {}
         for gamma in gammas:
             all_walks_indices = []
             all_walks_relevances = []
