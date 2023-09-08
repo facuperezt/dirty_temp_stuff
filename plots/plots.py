@@ -345,7 +345,7 @@ def save_plots(
     graph, visual_style = customize_graph(graph, str(src.item()), str(tar.item()))
     plot_graph(graph, visual_style, walks, explanation, ax, gamma, epsilon)
     os.makedirs("all_plots/", exist_ok= True)
-    fig.savefig(f"all_plots/{src.item()}_{tar.item()}_{str(gamma).replace('.', ',')}_{str(epsilon).replace('.', ',')}")
+    fig.savefig(f"all_plots/{src.item()}_{tar.item()}_{str(gamma).replace('.', ',')}_{str(epsilon).replace('.', ',')}.pdf")
 
 def plot_explanations_modular(
         adjacency_matrix : torch_sparse.SparseTensor,

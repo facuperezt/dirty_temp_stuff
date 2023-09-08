@@ -461,10 +461,10 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
     # initilaization models
     gnn, nn = GNN(), NN()
     if load:
-        # gnn.load_state_dict(torch.load("models/gnn_2100_50_0015"))
-        # nn.load_state_dict(torch.load("models/nn_2100_50_0015"))
-        gnn.load_state_dict(torch.load("models/gnn_new"))
-        nn.load_state_dict(torch.load("models/nn_new"))
+        gnn.load_state_dict(torch.load("models/gnn_2100_50_0015"))
+        nn.load_state_dict(torch.load("models/nn_2100_50_0015"))
+        # gnn.load_state_dict(torch.load("models/gnn_new"))
+        # nn.load_state_dict(torch.load("models/nn_new"))
     gnn.to(device), nn.to(device), data.to(device)
     t_GCN = testGCN(gnn)
     optimizer = torch.optim.Adam(list(gnn.parameters()) + list(nn.parameters()), lr=0.0005)
@@ -499,10 +499,10 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
 
             if i == epochs - 1:
                 if save:
-                    # torch.save(tmp_gnn, "models/gnn_None_50_001_new")
-                    # torch.save(tmp_nn, "models/nn_None_50_001_new")
-                    torch.save(tmp_gnn, "models/gnn_new")
-                    torch.save(tmp_nn, "models/nn_new")
+                    torch.save(tmp_gnn, "models/gnn_None_50_001_new")
+                    torch.save(tmp_nn, "models/nn_None_50_001_new")
+                    # torch.save(tmp_gnn, "models/gnn_new")
+                    # torch.save(tmp_nn, "models/nn_new")
                 if plot:
                     plots.plot_curves(epochs, [valid_mrr, test_mrr, loss],
                                       ["Valid MRR", "Test MRR", "Trainings Error"], 'Model Error',
