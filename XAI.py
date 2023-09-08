@@ -164,7 +164,7 @@ def refactored_explains(
     pos_pred = mlp(mid[src], mid[tar])
 
     sample_criterion = "indirect connections"
-    samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "indirect_connections_remove_src_tar.pkl", save = "")
+    samples = find_good_samples(edge_index, test_set, remove_connection= True, criterion= sample_criterion, load = "", save = "")
     # samples = [5]#, 47 , 53, 5, 188, 105]
     # new_samples = 94
 
@@ -175,7 +175,7 @@ def refactored_explains(
                 p = []
                 structure = None
                 walks, special_walks_indexes = samples[i]
-                if len(walks) > 100: continue
+                if len(walks) > 1000: continue
                 if remove_connections:
                     indexes = find_index_of_connection(edge_index, src[i], tar[i])
                     tmp_ei = remove_connection_at_index(edge_index.clone(), indexes)
@@ -197,9 +197,9 @@ def refactored_explains(
                 if similarity: score += utils_func.similarity(walks, p, x, tar[i], "max")
 
                 if plot:
-                    plots.plot_explanations_modular(edge_index, [p], src[i], tar[i], walks, gamma, epsilon)
+                    plots.save_plots(edge_index, p, src[i], tar[i], walks, gamma, epsilon)
                     # walks.append([src[i].numpy(), src[i].numpy(), src[i].numpy(), tar[i].numpy()])
-                    structure = plots.side_by_side_plot(p, special_walks_indexes, src[i], tar[i], walks, gamma, structure)
+                    # structure = plots.side_by_side_plot(p, special_walks_indexes, src[i], tar[i], walks, gamma, structure)
                     #plots.plt_node_lrp(node_exp,  src[i], tar[i], walks)
                 
     if similarity:

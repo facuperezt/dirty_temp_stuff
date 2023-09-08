@@ -11,6 +11,7 @@ from itertools import groupby
 from typing import Dict, List
 import torch_sparse
 from matplotlib import patches, lines
+import os
 
 def node_plt(walks, gnn, r_src, r_tar, tar, x, edge_index, pred):
     pass
@@ -329,6 +330,22 @@ def plot_graph_sum(graph, visual_style, walks, rel, ax, gamma, epsilon):
         alpha = get_alpha(np.abs(r), max_abs, new_min = 0.1)
         plot_walk_trace(points, ax, r, alpha, noise= False)
 
+def save_plots(
+        adjacency_matrix : torch_sparse.SparseTensor,
+        explanation : List[np.ndarray],
+        src : torch.Tensor,
+        tar : torch.Tensor,
+        walks : List[List[int]],
+        gamma : float = 0.0,
+        epsilon : float = 0.0,
+    ):
+    subgraph = np.unique(np.asarray(walks).flatten())
+    graph = get_graph(adjacency_matrix, subgraph, np.asarray(src), np.asarray(tar))
+    fig, ax = plt.subplots(figsize=(12,12))
+    graph, visual_style = customize_graph(graph, str(src.item()), str(tar.item()))
+    plot_graph(graph, visual_style, walks, explanation, ax, gamma, epsilon)
+    os.makedirs("all_plots/", exist_ok= True)
+    fig.savefig(f"all_plots/{src.item()}_{tar.item()}_{str(gamma).replace('.', ',')}_{str(epsilon).replace('.', ',')}")
 
 def plot_explanations_modular(
         adjacency_matrix : torch_sparse.SparseTensor,
@@ -341,8 +358,7 @@ def plot_explanations_modular(
         ):
     """
     Every tensor of relevances contained in explanations explains the same subgraph
-    """
-    
+    """  
     subgraph = np.unique(np.asarray(walks).flatten())
     graph = get_graph(adjacency_matrix, subgraph, np.asarray(src), np.asarray(tar))
     fig, axs = plt.subplots(len(explanations), 2, figsize=(10, 6*len(explanations)))
