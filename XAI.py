@@ -251,7 +251,9 @@ def explain_all_walks(
                 walks_indices = torch.stack([torch.tensor(_w) for i,_w in enumerate(walks) if i in non_zero_inds]).T
                 all_walks_indices.append(walks_indices)
                 all_walks_relevances.extend([_p for i,_p in enumerate(p) if i in non_zero_inds])
-                out = torch.sparse_coo_tensor(walks_indices, [a.item() for i,a in enumerate(p) if i in non_zero_inds], size = walks_indices.shape[0]*[edge_index.sparse_sizes()[0]])
+                out = torch.sparse_coo_tensor(walks_indices, [a.item() for i,a
+                in enumerate(p) if i in non_zero_inds], size =
+                walks_indices.shape[0]*[edge_index.sparse_sizes()[0]])
                 torch.save(out, f"all_walk_relevances/{src[i].item()}_{tar[i].item()}_{str(gamma).replace('.', ',')}_{str(epsilon).replace('.', ',')}.th")
             all_walks_indices = torch.cat(all_walks_indices, dim= 1)
             out = torch.sparse_coo_tensor(all_walks_indices, [a.item() for a in all_walks_relevances], size = walks_indices.shape[0]*[edge_index.sparse_sizes()[0]])
