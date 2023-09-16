@@ -566,25 +566,26 @@ if explain:
 # ----------------------- training & testing
 average = np.zeros((runs, 2))
 
-import quantify
-reload(quantify)
-df = quantify.get_pooled_relevances("all_walk_relevances/", valid_set["source_node"], valid_set["target_node"])
-_df = df.groupby(['gamma', 'epsilon'], as_index=True).mean()
-_df.loc[:, ~_df.columns.isin(['src', 'tar'])].plot(kind= 'bar', logy=True)
+# import quantify
+# reload(quantify)
+# df = quantify.get_pooled_relevances("all_walk_relevances/", valid_set["source_node"], valid_set["target_node"])
+# _df = df.groupby(['gamma', 'epsilon'], as_index=True).mean()
+# _df.loc[:, ~_df.columns.isin(['src', 'tar'])].plot(kind= 'bar', logy=False)
 
 #%%
-# adjacency_matrix = data.adj_t
-# path_to_folder = "all_walk_relevances/"
-# already_plotted = []
-# all_files = glob.glob(os.path.join(path_to_folder,f"*.th"))
-# for file in all_files[1:]:
-#     filename = os.path.splitext(file)[0].split('/')[-1]
-#     src, tar, _, _ = filename.split('_')
-#     if f"{src}, {tar}" in already_plotted or src == 'all': continue
-#     else: already_plotted.append(f"{src}, {tar}")
+from importlib import reload
+adjacency_matrix = data.adj_t
+path_to_folder = "all_walk_relevances/"
+already_plotted = []
+all_files = glob.glob(os.path.join(path_to_folder,f"*.th"))
+for file in all_files[1:]:
+    filename = os.path.splitext(file)[0].split('/')[-1]
+    src, tar, _, _ = filename.split('_')
+    if f"{src}, {tar}" in already_plotted or src == 'all': continue
+    else: already_plotted.append(f"{src}, {tar}")
 
-#     plots.plot_all_parameters_for_src_tar(path_to_folder, adjacency_matrix, int(src), int(tar), save=f"all_plots/{src}_{tar}.pdf")
-
+    plots.plot_all_parameters_for_src_tar(path_to_folder, adjacency_matrix, int(src), int(tar), loc='upper left', bbox_to_anchor=(-1.35, 1), prop={'size': 6})# , save=f"all_plots/{src}_{tar}.pdf")
+    break
 
 #%%
 if __name__ == "__maasdinnn__":

@@ -407,10 +407,10 @@ def plot_from_filename(
     simple_plot(adjacency_matrix= adjacency_matrix, explanation=np.array(explanations), src=src, tar=tar, walks=walks,
                  gamma= gamma, epsilon= epsilon, ax= ax, set_legend= set_legend, legend_args= legend_kwargs)
     
-def plot_all_parameters_for_src_tar(path_to_folder : str, adjacency_matrix : torch_sparse.SparseTensor, src : int, tar : int, save : str = "") -> None:
+def plot_all_parameters_for_src_tar(path_to_folder : str, adjacency_matrix : torch_sparse.SparseTensor, src : int, tar : int, save : str = "", **kwargs) -> None:
     files = glob.glob(os.path.join(path_to_folder,f"{src}_{tar}_*.th"))
     files = sorted(files, key= lambda s: [float(_s.replace(',', '.')) for _s in os.path.splitext(s)[0].split('_')[-2:]])
-    fig, axs = plt.subplots(2, len(files)//2 + len(files)%2, figsize=(3*(len(files)//2 + len(files)%2), 3))
+    fig, axs = plt.subplots(2, len(files)//2 + len(files)%2, figsize=(kwargs.get("figsize_multiplier", 1.5) * (len(files)//2 + len(files)%2), kwargs.get("figsize_multiplier", 1.5) * 1.8))
     axs = np.array(axs).flatten()
     ordered_params = []
     for i,(file, ax, letter) in enumerate(zip(files, axs, 'ABCDEFGHI')):
@@ -423,6 +423,7 @@ def plot_all_parameters_for_src_tar(path_to_folder : str, adjacency_matrix : tor
     if len(axs) > len(files):
         axs[-1].axis('off')
         correct_positioning_of_axes(axs)
+        set_ax_legend(axs[len(axs)//2 + len(axs)%1], **kwargs)
     fig.suptitle([f"{b}: {a}" for a,b in zip(ordered_params, 'ABCDEFGHI')], fontsize= 7)
     if save != "":
         fig.savefig(save)
@@ -434,7 +435,7 @@ def correct_positioning_of_axes(axs : plt.Axes):
     half = len(axs) // 2 + len(axs) % 2
     axs_positions = [_ax.get_position() for _ax in axs]
     _delta = (axs_positions[0].get_points() + axs_positions[1].get_points())/2 - axs_positions[0].get_points()
-    _delta = _delta[:, 0].mean()
+    _delta = _delta[:, 0].mean() * 1.1
     for ax in axs[half:-1][::-1]:
         pos = ax.get_position().bounds
         new_bounds = list(pos)
