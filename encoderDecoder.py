@@ -469,7 +469,7 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
         # nn.load_state_dict(torch.load("models/nn_new"))
     gnn.to(device), nn.to(device), data.to(device)
     t_GCN = testGCN(gnn)
-    optimizer = torch.optim.Adam(list(gnn.parameters()) + list(nn.parameters()), lr=0.0005)
+    optimizer = torch.optim.Adam(list(gnn.parameters()) + list(nn.parameters()), lr=0.05)
     evaluator = Evaluator(name='ogbl-citation2')
 
     # adjusting batchsize for full Dataset
@@ -489,8 +489,8 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
         for i in tqdm(range(epochs), desc= "Epoch: "):
             if train_model:
                 loss[i] = train(batchsize, train_set, data.x, data.adj_t, optimizer, gnn, nn).detach()
-            #valid_mrr[i] = test(batchsize, valid_set, data.x, data.adj_t, evaluator, gnn, nn)
-            #test_mrr[i] = test(batchsize, test_set, data.x, data.adj_t, evaluator, gnn, nn)
+            valid_mrr[i] = test(batchsize, valid_set, data.x, data.adj_t, evaluator, gnn, nn)
+            test_mrr[i] = test(batchsize, test_set, data.x, data.adj_t, evaluator, gnn, nn)
             # valid_mrr[i] = test(batchsize, valid_set, data.x, data.adj_t, evaluator, t_GCN, nn)
             # test_mrr[i] = test(batchsize, test_set, data.x, data.adj_t, evaluator, t_GCN, nn)
 
@@ -525,78 +525,78 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
     print("Validation avarage Performance:", average[:, 0].mean(), "Validation variance:",
           ((average[:, 0] - average[:, 0].mean()) ** 2 / runs).sum())
 
-from importlib import reload
-batchsize=None; epochs=1; explain=True; save=False; train_model=False; load=True; runs=1; plot=False
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-np.random.default_rng()
+# from importlib import reload
+# batchsize=None; epochs=1; explain=True; save=False; train_model=False; load=True; runs=1; plot=False
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# np.random.default_rng()
 
-# loading the data
-dataset = dataLoader.LinkPredData("data/", "mini_graph", use_subset=True)
-# dataset = dataLoader.ToyData("data/", "mini_graph", use_subset=True)
+# # loading the data
+# dataset = dataLoader.LinkPredData("data/", "mini_graph", use_subset=True)
+# # dataset = dataLoader.ToyData("data/", "mini_graph", use_subset=True)
 
-data = dataset.load()
-split = dataset.get_edge_split()
-train_set, valid_set, test_set = split["train"], split["valid"], split["test"]
+# data = dataset.load()
+# split = dataset.get_edge_split()
+# train_set, valid_set, test_set = split["train"], split["valid"], split["test"]
 
-tmp = data.adj_t.set_diag()
-deg = tmp.sum(dim=0).pow(-0.5)
-deg[deg == float('inf')] = 0
-tmp = deg.view(-1, 1) * tmp * deg.view(1, -1)
-data.adj_t = tmp
+# tmp = data.adj_t.set_diag()
+# deg = tmp.sum(dim=0).pow(-0.5)
+# deg[deg == float('inf')] = 0
+# tmp = deg.view(-1, 1) * tmp * deg.view(1, -1)
+# data.adj_t = tmp
 
-# initilaization models
-gnn, nn = GNN(), NN()
-if load:
-    gnn.load_state_dict(torch.load("models/gnn_2100_50_0015"))
-    nn.load_state_dict(torch.load("models/nn_2100_50_0015"))
-gnn.to(device), nn.to(device), data.to(device)
-t_GCN = testGCN(gnn)
-optimizer = torch.optim.Adam(list(gnn.parameters()) + list(nn.parameters()), lr=0.0005)
-evaluator = Evaluator(name='ogbl-citation2')
+# # initilaization models
+# gnn, nn = GNN(), NN()
+# if load:
+#     gnn.load_state_dict(torch.load("models/gnn_2100_50_0015"))
+#     nn.load_state_dict(torch.load("models/nn_2100_50_0015"))
+# gnn.to(device), nn.to(device), data.to(device)
+# t_GCN = testGCN(gnn)
+# optimizer = torch.optim.Adam(list(gnn.parameters()) + list(nn.parameters()), lr=0.0005)
+# evaluator = Evaluator(name='ogbl-citation2')
 
-# adjusting batchsize for full Dataset
-if batchsize is None:
-    batchsize = dataset.num_edges
-if explain:
-    # to plot proper plot the the LRP-method we need all walks:
-    explain_data = dataset.load(transform=False, explain=False)
-    exp_adj = utils_func.adjMatrix(explain_data.edge_index,
-                                    explain_data.num_nodes)  # Transpose of adj Matrix for find walks
+# # adjusting batchsize for full Dataset
+# if batchsize is None:
+#     batchsize = dataset.num_edges
+# if explain:
+#     # to plot proper plot the the LRP-method we need all walks:
+#     explain_data = dataset.load(transform=False, explain=False)
+#     exp_adj = utils_func.adjMatrix(explain_data.edge_index,
+#                                     explain_data.num_nodes)  # Transpose of adj Matrix for find walks
 
-# ----------------------- training & testing
-average = np.zeros((runs, 2))
+# # ----------------------- training & testing
+# average = np.zeros((runs, 2))
 
-# import quantify
-# reload(quantify)
-# df = quantify.get_pooled_relevances("all_walk_relevances/", valid_set["source_node"], valid_set["target_node"])
-# _df = df.groupby(['gamma', 'epsilon'], as_index=True).mean()
-# _df.loc[:, ~_df.columns.isin(['src', 'tar'])].plot(kind= 'bar', logy=False)
+# # import quantify
+# # reload(quantify)
+# # df = quantify.get_pooled_relevances("all_walk_relevances/", valid_set["source_node"], valid_set["target_node"])
+# # _df = df.groupby(['gamma', 'epsilon'], as_index=True).mean()
+# # _df.loc[:, ~_df.columns.isin(['src', 'tar'])].plot(kind= 'bar', logy=False)
+
+# #%%
+# from importlib import reload
+# adjacency_matrix = data.adj_t
+# path_to_folder = "all_walk_relevances/"
+# already_plotted = []
+# all_files = glob.glob(os.path.join(path_to_folder,f"*.th"))
+# for file in all_files[1:]:
+#     filename = os.path.splitext(file)[0].split('/')[-1]
+#     src, tar, _, _ = filename.split('_')
+#     if f"{src}, {tar}" in already_plotted or src == 'all': continue
+#     else: already_plotted.append(f"{src}, {tar}")
+
+#     plots.plot_all_parameters_for_src_tar(path_to_folder, adjacency_matrix, int(src), int(tar), loc='upper left', bbox_to_anchor=(-1.35, 1), prop={'size': 6})# , save=f"all_plots/{src}_{tar}.pdf")
+#     break
 
 #%%
-from importlib import reload
-adjacency_matrix = data.adj_t
-path_to_folder = "all_walk_relevances/"
-already_plotted = []
-all_files = glob.glob(os.path.join(path_to_folder,f"*.th"))
-for file in all_files[1:]:
-    filename = os.path.splitext(file)[0].split('/')[-1]
-    src, tar, _, _ = filename.split('_')
-    if f"{src}, {tar}" in already_plotted or src == 'all': continue
-    else: already_plotted.append(f"{src}, {tar}")
-
-    plots.plot_all_parameters_for_src_tar(path_to_folder, adjacency_matrix, int(src), int(tar), loc='upper left', bbox_to_anchor=(-1.35, 1), prop={'size': 6})# , save=f"all_plots/{src}_{tar}.pdf")
-    break
-
-#%%
-if __name__ == "__maasdinnn__":
+if __name__ == "__main__":
     # main(None, 100, True, False, True, False, 1, False)
     main(
         batchsize=None,
-        epochs= 1,
-        explain= True,
+        epochs= 100,
+        explain= False,
         save= False,
-        train_model= False,
-        load= True,
+        train_model= True,
+        load= False,
         runs= 1,
         plot= False,
     )
