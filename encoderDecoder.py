@@ -380,10 +380,14 @@ def train(batchsize, train_set, x, adj, optimizer, gnn, nn):
         train_src, train_tar = train_set["source_node"][idx], train_set["target_node"][idx]
 
         # removing positive link for training
-        tmp = adj.to_dense()
-        tmp[train_src, train_tar] = 0
-        tmp[train_tar, train_src] = 0
-        tmp = torch_sparse.SparseTensor.from_dense(tmp)
+        if batchsize > 100:
+            tmp = adj.to_dense()
+            tmp[train_src, train_tar] = 0
+            tmp[train_tar, train_src] = 0
+            tmp = torch_sparse.SparseTensor.from_dense(tmp)
+        else:
+            tmp = graph_utils.remove_connections_between(adj, train_src, train_tar)
+
         graph_rep = gnn(x, tmp)
 
         # positive sampling
@@ -566,6 +570,8 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
 # # ----------------------- training & testing
 # average = np.zeros((runs, 2))
 
+#%%
+
 # # import quantify
 # # reload(quantify)
 # # df = quantify.get_pooled_relevances("all_walk_relevances/", valid_set["source_node"], valid_set["target_node"])
@@ -591,7 +597,7 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
 if __name__ == "__main__":
     # main(None, 100, True, False, True, False, 1, False)
     main(
-        batchsize=None,
+        batchsize=10,
         epochs= 100,
         explain= False,
         save= False,
