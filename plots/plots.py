@@ -406,7 +406,20 @@ def plot_from_filename(
     walks = rel_matrix._indices().T.tolist()
     simple_plot(adjacency_matrix= adjacency_matrix, explanation=np.array(explanations), src=src, tar=tar, walks=walks,
                  gamma= gamma, epsilon= epsilon, ax= ax, set_legend= set_legend, legend_args= legend_kwargs)
-    
+
+
+def plot_all_walks_in_folder(path_to_folder: str, adj_t: torch_sparse.SparseTensor, save: bool = False):
+    already_plotted = []
+    all_files = glob.glob(os.path.join(path_to_folder,f"*.th"))
+    for file in all_files[1:]:
+        filename = os.path.splitext(file)[0].split('/')[-1]
+        src, tar, _, _ = filename.split('_')
+        if f"{src}, {tar}" in already_plotted or src == 'all': continue
+        else: already_plotted.append(f"{src}, {tar}")
+
+        plot_all_parameters_for_src_tar(path_to_folder, adj_t, int(src), int(tar), loc='upper left', bbox_to_anchor=(-1.35, 1), prop={'size': 6}, save=f"all_plots/{src}_{tar}.pdf" if save else "")
+
+
 def plot_all_parameters_for_src_tar(path_to_folder : str, adjacency_matrix : torch_sparse.SparseTensor, src : int, tar : int, save : str = "", **kwargs) -> None:
     files = glob.glob(os.path.join(path_to_folder,f"{src}_{tar}_*.th"))
     files = sorted(files, key= lambda s: [float(_s.replace(',', '.')) for _s in os.path.splitext(s)[0].split('_')[-2:]])
@@ -428,7 +441,8 @@ def plot_all_parameters_for_src_tar(path_to_folder : str, adjacency_matrix : tor
     if save != "":
         fig.savefig(save)
         plt.close(fig)
-    plt.show()
+    else:
+        plt.show()
 
 
 def correct_positioning_of_axes(axs : plt.Axes):

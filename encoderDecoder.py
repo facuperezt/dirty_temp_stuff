@@ -515,6 +515,7 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
                                       file_name="GNN" + "performance")
                 if explain:
                     XAI.explain_all_walks(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, remove_connections= True)
+                    plots.plot_all_walks_in_folder("all_walk_relevances/", data.adj_t, save= True)
                     # XAI.refactored_explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, remove_connections= True)
                     # XAI.explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, False)
                     # XAI.get_explanations(data,explain_data,exp_adj,valid_set,t_GCN, gnn, nn,)
@@ -528,70 +529,6 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
           ((average[:, 1] - average[:, 1].mean()) ** 2 / runs).sum())
     print("Validation avarage Performance:", average[:, 0].mean(), "Validation variance:",
           ((average[:, 0] - average[:, 0].mean()) ** 2 / runs).sum())
-
-# from importlib import reload
-# batchsize=None; epochs=1; explain=True; save=False; train_model=False; load=True; runs=1; plot=False
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# np.random.default_rng()
-
-# # loading the data
-# dataset = dataLoader.LinkPredData("data/", "mini_graph", use_subset=True)
-# # dataset = dataLoader.ToyData("data/", "mini_graph", use_subset=True)
-
-# data = dataset.load()
-# split = dataset.get_edge_split()
-# train_set, valid_set, test_set = split["train"], split["valid"], split["test"]
-
-# tmp = data.adj_t.set_diag()
-# deg = tmp.sum(dim=0).pow(-0.5)
-# deg[deg == float('inf')] = 0
-# tmp = deg.view(-1, 1) * tmp * deg.view(1, -1)
-# data.adj_t = tmp
-
-# # initilaization models
-# gnn, nn = GNN(), NN()
-# if load:
-#     gnn.load_state_dict(torch.load("models/gnn_2100_50_0015"))
-#     nn.load_state_dict(torch.load("models/nn_2100_50_0015"))
-# gnn.to(device), nn.to(device), data.to(device)
-# t_GCN = testGCN(gnn)
-# optimizer = torch.optim.Adam(list(gnn.parameters()) + list(nn.parameters()), lr=0.0005)
-# evaluator = Evaluator(name='ogbl-citation2')
-
-# # adjusting batchsize for full Dataset
-# if batchsize is None:
-#     batchsize = dataset.num_edges
-# if explain:
-#     # to plot proper plot the the LRP-method we need all walks:
-#     explain_data = dataset.load(transform=False, explain=False)
-#     exp_adj = utils_func.adjMatrix(explain_data.edge_index,
-#                                     explain_data.num_nodes)  # Transpose of adj Matrix for find walks
-
-# # ----------------------- training & testing
-# average = np.zeros((runs, 2))
-
-#%%
-
-# # import quantify
-# # reload(quantify)
-# # df = quantify.get_pooled_relevances("all_walk_relevances/", valid_set["source_node"], valid_set["target_node"])
-# # _df = df.groupby(['gamma', 'epsilon'], as_index=True).mean()
-# # _df.loc[:, ~_df.columns.isin(['src', 'tar'])].plot(kind= 'bar', logy=False)
-
-# #%%
-# from importlib import reload
-# adjacency_matrix = data.adj_t
-# path_to_folder = "all_walk_relevances/"
-# already_plotted = []
-# all_files = glob.glob(os.path.join(path_to_folder,f"*.th"))
-# for file in all_files[1:]:
-#     filename = os.path.splitext(file)[0].split('/')[-1]
-#     src, tar, _, _ = filename.split('_')
-#     if f"{src}, {tar}" in already_plotted or src == 'all': continue
-#     else: already_plotted.append(f"{src}, {tar}")
-
-#     plots.plot_all_parameters_for_src_tar(path_to_folder, adjacency_matrix, int(src), int(tar), loc='upper left', bbox_to_anchor=(-1.35, 1), prop={'size': 6})# , save=f"all_plots/{src}_{tar}.pdf")
-#     break
 
 #%%
 if __name__ == "__main__":
