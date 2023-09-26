@@ -307,15 +307,16 @@ def get_alpha(x, r_max, r_min = 0, new_max = 1, new_min = 0.1):
         alpha = 0
     return np.clip(alpha, new_min, new_max) # is necessary to avoid floating points errors that may go outside of the acceptable range
 
-def plot_graph(graph, visual_style, walks, rel, ax, gamma, epsilon, noise = True, layout_dict : Dict[str, object] = None):
+def plot_graph(graph, visual_style, walks, rel, ax, gamma, epsilon, noise = True, layout_dict : Dict[str, object] = None, max_nr_walks: int = 1000):
     if layout_dict is None:
         layout_dict = {
             'layout' : "kk",
         }
     max_abs = np.abs(rel).max()
     layout = graph.layout(**layout_dict)
+    min_plottable_rel = 0 if len(rel) < max_nr_walks else np.sort(np.abs(rel))[::-1][max_nr_walks]
     for walk, r in zip(walks[:-1], rel):
-        if r == 0: continue
+        if r == 0 or np.abs(r) < min_plottable_rel: continue
         points = get_walk_points(layout, graph.vs["name"], [str(node) for node in walk])
         alpha = get_alpha(np.abs(r), max_abs, new_min = 0.1)
         plot_walk_trace(points, ax, r, alpha, noise= noise)
@@ -363,6 +364,7 @@ def simple_plot(
         ax : plt.Axes = None,
         set_legend : bool = False,
         legend_args : dict[str, object] = None,
+        max_nr_walks: int = 1000,
     ) -> None:
     subgraph = np.unique(np.asarray(walks).flatten())
     graph = get_graph(adjacency_matrix, subgraph, np.asarray(src), np.asarray(tar))
@@ -371,7 +373,7 @@ def simple_plot(
         plot_flag = True
     else: plot_flag = False
     graph, visual_style = customize_graph(graph, str(src.item()), str(tar.item()))
-    plot_graph(graph, visual_style, walks, explanation, ax, gamma, epsilon)
+    plot_graph(graph, visual_style, walks, explanation, ax, gamma, epsilon, max_nr_walks=max_nr_walks)
     if plot_flag:
         fig.tight_layout()
         fig.show()
@@ -386,6 +388,7 @@ def plot_from_filename(
         ax : plt.Axes = None,
         set_legend : bool = False,
         legend_kwargs : dict[str,object] = None,
+        max_nr_walks: int = 1000,
         ) -> None:
     """
     Takes a filename in form <path_to_file>/{src}_{tar}_{gamma}_{epsilon}.th
@@ -405,10 +408,10 @@ def plot_from_filename(
     src, tar = torch.tensor(int(src)), torch.tensor(int(tar))
     walks = rel_matrix._indices().T.tolist()
     simple_plot(adjacency_matrix= adjacency_matrix, explanation=np.array(explanations), src=src, tar=tar, walks=walks,
-                 gamma= gamma, epsilon= epsilon, ax= ax, set_legend= set_legend, legend_args= legend_kwargs)
+                 gamma= gamma, epsilon= epsilon, ax= ax, set_legend= set_legend, legend_args= legend_kwargs, max_nr_walks=max_nr_walks)
 
 
-def plot_all_walks_in_folder(path_to_folder: str, adj_t: torch_sparse.SparseTensor, save: bool = False):
+def plot_all_walks_in_folder(path_to_folder: str, adj_t: torch_sparse.SparseTensor, save: bool = False, max_walks_per_plot: int = 1000, **kwargs):
     already_plotted = []
     all_files = glob.glob(os.path.join(path_to_folder,f"*.th"))
     for file in all_files[1:]:
@@ -417,10 +420,10 @@ def plot_all_walks_in_folder(path_to_folder: str, adj_t: torch_sparse.SparseTens
         if f"{src}, {tar}" in already_plotted or src == 'all': continue
         else: already_plotted.append(f"{src}, {tar}")
 
-        plot_all_parameters_for_src_tar(path_to_folder, adj_t, int(src), int(tar), loc='upper left', bbox_to_anchor=(-1.35, 1), prop={'size': 6}, save=f"all_plots/{src}_{tar}.pdf" if save else "")
+        plot_all_parameters_for_src_tar(path_to_folder, adj_t, int(src), int(tar), loc='upper left', bbox_to_anchor=(-1, 1), prop={'size': 4}, save=f"all_plots/{src}_{tar}.pdf" if save else "", max_walks_per_plot=max_walks_per_plot, **kwargs)
 
 
-def plot_all_parameters_for_src_tar(path_to_folder : str, adjacency_matrix : torch_sparse.SparseTensor, src : int, tar : int, save : str = "", **kwargs) -> None:
+def plot_all_parameters_for_src_tar(path_to_folder : str, adjacency_matrix : torch_sparse.SparseTensor, src : int, tar : int, save : str = "", max_walks_per_plot: int = 1000, **kwargs) -> None:
     files = glob.glob(os.path.join(path_to_folder,f"{src}_{tar}_*.th"))
     files = sorted(files, key= lambda s: [float(_s.replace(',', '.')) for _s in os.path.splitext(s)[0].split('_')[-2:]])
     fig, axs = plt.subplots(2, len(files)//2 + len(files)%2, figsize=(kwargs.get("figsize_multiplier", 1.5) * (len(files)//2 + len(files)%2), kwargs.get("figsize_multiplier", 1.5) * 1.8))
@@ -431,12 +434,38 @@ def plot_all_parameters_for_src_tar(path_to_folder : str, adjacency_matrix : tor
         gamma, epsilon = os.path.splitext(file)[0].split('/')[-1].split('_')[-2:]
         gamma, epsilon = [float(param.replace(',', '.')) for param in [gamma, epsilon]]
         ordered_params.append(tuple([gamma, epsilon]))
-        plot_from_filename(file, adjacency_matrix, ax)
+        plot_from_filename(file, adjacency_matrix, ax, max_nr_walks=max_walks_per_plot)
         ax.text(ax.get_xlim()[0], ax.get_ylim()[1], letter)
     if len(axs) > len(files):
         axs[-1].axis('off')
         correct_positioning_of_axes(axs)
-        set_ax_legend(axs[len(axs)//2 + len(axs)%1], **kwargs)
+        set_ax_legend(axs[len(axs)//2 + len(axs)%1], loc=kwargs.get("loc"), bbox_to_anchor=kwargs.get("bbox_to_anchor"), prop=kwargs.get("prop"))
+    fig.suptitle([f"{b}: {a}" for a,b in zip(ordered_params, 'ABCDEFGHI')], fontsize= 7)
+    if save != "":
+        fig.savefig(save)
+        plt.close(fig)
+    else:
+        plt.show()
+
+
+def plot_multiple_src_tar_for_parameter(path_to_folder: str, adjacency_matrix: torch_sparse.SparseTensor, src: torch.Tensor, tar: torch.Tensor, gamma: float = 0.03, epsilon: float = 1e-9, save: str = "", max_walks_per_plot: int = 1000, **kwargs):
+    get_src_and_tar = lambda file_name: [float(param.replace(",", ".")) for param in os.path.splitext(file_name)[0].split('/')[-1].split('_')[:2]]
+    files = glob.glob(os.path.join(path_to_folder,f"*_{str(gamma).replace('.', ',')}_{str(epsilon).replace('.', ',')}.th"))
+    files = [file for file in files if "all" not in file.split("/")[-1] and get_src_and_tar(file.split("/")[-1])[0] in src and get_src_and_tar(file.split("/")[-1])[1] in tar]
+    files = sorted(files, key= lambda s: [int(_s) for _s in os.path.splitext(s)[0].split("/")[-1].split('_')[:2]])
+    fig, axs = plt.subplots(2, len(src)//2 + len(src)%2, figsize=(kwargs.get("figsize_multiplier", 1.5) * (len(src)//2 + len(src)%2), kwargs.get("figsize_multiplier", 1.5) * 1.9))
+    axs = np.array(axs).flatten()
+    ordered_params = []
+    for i,(file, ax, letter) in enumerate(zip(files, axs, 'ABCDEFGHI')):
+        ax : plt.Axes
+        _src, _tar = os.path.splitext(file)[0].split('/')[-1].split('_')[:2]
+        ordered_params.append(tuple([_src, _tar]))
+        plot_from_filename(file, adjacency_matrix, ax, max_nr_walks=max_walks_per_plot)
+        ax.text(ax.get_xlim()[0], ax.get_ylim()[1], letter)
+    if len(axs) > len(files):
+        axs[-1].axis('off')
+        correct_positioning_of_axes(axs)
+        set_ax_legend(axs[len(axs)//2 + len(axs)%1], loc=kwargs.get("loc"), bbox_to_anchor=kwargs.get("bbox_to_anchor"), prop=kwargs.get("prop"))
     fig.suptitle([f"{b}: {a}" for a,b in zip(ordered_params, 'ABCDEFGHI')], fontsize= 7)
     if save != "":
         fig.savefig(save)

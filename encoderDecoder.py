@@ -514,8 +514,21 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
                                       ["Valid MRR", "Test MRR", "Trainings Error"], 'Model Error',
                                       file_name="GNN" + "performance")
                 if explain:
-                    XAI.explain_all_walks(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, remove_connections= True)
-                    plots.plot_all_walks_in_folder("all_walk_relevances/", data.adj_t, save= True)
+                    # XAI.explain_all_walks(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, remove_connections= True)
+                    # plots.plot_all_parameters_for_src_tar("all_walk_relevances/", data.adj_t, 20513, 5936, "20513_5936.pdf", figsize_multiplier=1.5, loc="upper left", bbox_to_anchor=(-1.2, 1), prop={"size": 6})
+                    # plots.plot_all_parameters_for_src_tar("all_walk_relevances/", data.adj_t, 20513, 5936, "", figsize_multiplier=1.5, loc="upper left", bbox_to_anchor=(-1.2, 1), prop={"size": 6}, max_walks_per_plot=20000000)
+                    # 20513_5936
+                    # 22447_21700
+                    # 11194_12068
+                    # 19671_16431
+                    # 11820_24366
+                    # 22364_7217
+                    # 24187_7762
+                    src = torch.Tensor([20513, 22447, 11194, 19671, 24187, 22364])
+                    tar = torch.Tensor([5936, 21700, 12068, 16431, 7762, 7217])
+                    for gam in [0.0, 0.03, 0.1]:
+                        for eps in [0.0, 1e-9]:
+                            plots.plot_multiple_src_tar_for_parameter("all_walk_relevances/", data.adj_t, src, tar, save= f"all_plots/multiple_src_tar/{gam}_{eps}.pdf", gamma=gam, epsilon=eps, max_walks_per_plot=50, figsize_multiplier=1.5)
                     # XAI.refactored_explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, remove_connections= True)
                     # XAI.explains(valid_set, gnn, nn, exp_adj, explain_data.x, data.adj_t, False)
                     # XAI.get_explanations(data,explain_data,exp_adj,valid_set,t_GCN, gnn, nn,)
@@ -534,12 +547,12 @@ def main(batchsize=None, epochs=1, explain=True, save=False, train_model=False, 
 if __name__ == "__main__":
     # main(None, 100, True, False, True, False, 1, False)
     main(
-        batchsize=10,
-        epochs= 100,
-        explain= False,
+        batchsize=None,
+        epochs= 1,
+        explain= True,
         save= False,
-        train_model= True,
-        load= False,
+        train_model= False,
+        load= True,
         runs= 1,
         plot= False,
     )
